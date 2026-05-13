@@ -287,13 +287,21 @@ function Install-PythonPackages {
     
     # Обновляем pip
     Update-GUI -Status "Upgrading pip..." -Detail "pip install --upgrade pip" -Progress 92
-    Start-Process -FilePath $pythonExe -ArgumentList "-m pip install --upgrade pip --no-warn-script-location" -Wait -NoNewWindow
+    $procUpgrade = Start-Process -FilePath $pythonExe -ArgumentList "-m pip install --upgrade pip --no-warn-script-location" -Wait -PassThru -NoNewWindow
+    if ($procUpgrade.ExitCode -ne 0) {
+        Show-Error "Failed to upgrade pip (ExitCode: $($procUpgrade.ExitCode))"
+        return $false
+    }
     
     # Устанавливаем выбранные пакеты
     if ($Packages.Count -gt 0) {
         $pkgList = $Packages -join " "
         Update-GUI -Status "Installing components..." -Detail $pkgList -Progress 94
-        Start-Process -FilePath $pythonExe -ArgumentList "-m pip install $pkgList --no-warn-script-location" -Wait -NoNewWindow
+        $procPkg = Start-Process -FilePath $pythonExe -ArgumentList "-m pip install $pkgList --no-warn-script-location" -Wait -PassThru -NoNewWindow
+        if ($procPkg.ExitCode -ne 0) {
+            Show-Error "Failed to install packages (ExitCode: $($procPkg.ExitCode))"
+            return $false
+        }
     } else {
         Update-GUI -Status "No packages selected" -Detail "Skipping package installation" -Progress 94
     }
@@ -410,8 +418,16 @@ try {
     
     Update-GUI -Status "Downloading get-pip.py..." -Progress 80 -Detail "bootstrap.pypa.io"
     $getPipPath = Join-Path $downloadDir "get-pip.py"
-    Download-File -Url $getPipUrl -DestinationPath $getPipPath -Description "get-pip.py" | Out-Null
-    
+    $getPipDownloaded = Download-File -Url $getPipUrl -DestinationPath $getPipPath -Description "get-pip.py"
+    if (-not $getPipDownloaded) {
+        Update-GUI -Status "ERROR" -Progress 0 -Detail "Failed to download get-pip.py"
+        $pkgList = if ($selectedPackages.Count -gt 0) { $selectedPackages -join ', ' } else { 'none selected' }
+        Show-Error "Failed to download get-pip.py.`n`nPip was NOT installed.`nPackages were NOT installed:`n$pkgList"
+        $buttonClose.Visible = $true; $form.Refresh()
+        while (-not $global:done) { Start-Sleep -Milliseconds 100; [System.Windows.Forms.Application]::DoEvents() }
+        exit 1
+    }
+
     # Устанавливаем пакеты (функция сама проверит успешность pip)
     $installSuccess = Install-PythonPackages -PythonDir $pythonDir -DownloadDir $downloadDir -Packages $selectedPackages
     if (-not $installSuccess) {
@@ -421,7 +437,7 @@ try {
         exit 1
     }
     
-    Update-GUI -Status "COMPLETE!" -Progress 100 -Detail "Python $selectedVersion ($selectedArch)`nAll packages installed"
+    Update-GUI -Status "COMPLETE!" -Progress 100 -Detail "Python $selectedVersion ($selectedArch)`nAll selected packages installed"
     $pkgReport = if ($selectedPackages.Count -gt 0) { $selectedPackages -join ', ' } else { 'pip only' }
     Show-Success "Installation complete!`n`nPython: $pythonDir`nVersion: $selectedVersion $selectedArch`n`nPackages installed: $pkgReport"
     $buttonClose.Visible = $true
