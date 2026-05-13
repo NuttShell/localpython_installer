@@ -5,7 +5,15 @@ set "MYSELF=%~f0"
 powershell -NoProfile -ExecutionPolicy Bypass -Command "$f=$env:MYSELF; $x=(Get-Content $f -Raw); $p=$x.Split([Environment]::NewLine); $s=0; for($i=0;$i-lt$p.Count;$i++){if($p[$i].Trim()-eq'#PS'){ $s=$i+1; break}}; $code=$p[$s..($p.Count-1)]-join[Environment]::NewLine; $t=\"$env:TEMP\_$RANDOM.ps1\"; $code|Out-File $t -Encoding utf8; &$t; exit $LASTEXITCODE"
 goto :eof
 #PS
+# Hide console window
+Add-Type -Name Window -Namespace Console -MemberDefinition '
+[DllImport("Kernel32.dll")]
+public static extern IntPtr GetConsoleWindow();
+[DllImport("user32.dll")]
+public static extern bool ShowWindow(IntPtr hWnd, int nCmdShow);
+'
 # ==================== GUI SETUP ====================
+[Console.Window]::ShowWindow([Console.Window]::GetConsoleWindow(), 0)
 Add-Type -AssemblyName System.Windows.Forms
 Add-Type -AssemblyName System.Drawing
 [System.Windows.Forms.Application]::EnableVisualStyles()
