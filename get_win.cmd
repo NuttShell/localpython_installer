@@ -8,7 +8,6 @@ goto :eof
 # ==================== GUI SETUP ====================
 Add-Type -AssemblyName System.Windows.Forms
 Add-Type -AssemblyName System.Drawing
-
 [System.Windows.Forms.Application]::EnableVisualStyles()
 
 $form = New-Object System.Windows.Forms.Form
@@ -66,7 +65,6 @@ $form.Controls.Add($labelStatus)
 $form.Controls.Add($progressBar)
 $form.Controls.Add($labelDetail)
 $form.Controls.Add($buttonClose)
-
 $form.Add_Shown({ $form.Activate() })
 
 $global:progress = 0
@@ -79,7 +77,6 @@ function Update-GUI {
     if ($Status -ne "") { $global:status = $Status }
     if ($Progress -ge 0) { $global:progress = $Progress }
     if ($Detail -ne "") { $global:detail = $Detail }
-    
     $labelStatus.Text = $global:status
     $progressBar.Value = $global:progress
     $labelDetail.Text = $global:detail
@@ -149,6 +146,58 @@ function Get-UserSelection {
     return 0
 }
 
+function Get-UserMultiSelection {
+    param([string]$Title, [string[]]$Options, [string]$Prompt = "Select")
+    $formSel = New-Object System.Windows.Forms.Form
+    $formSel.Text = $Title
+    $formSel.StartPosition = "CenterParent"
+    $formSel.FormBorderStyle = "FixedDialog"
+    $formSel.TopMost = $true
+    $formSel.MaximizeBox = $false
+    $formSel.MinimizeBox = $false
+    $formSel.AutoSizeMode = "GrowAndShrink"
+    $formSel.AutoSize = $true
+    
+    $lbl = New-Object System.Windows.Forms.Label
+    $lbl.Text = $Prompt
+    $lbl.AutoSize = $true
+    $lbl.Location = New-Object System.Drawing.Point(20, 15)
+    $lbl.Font = New-Object System.Drawing.Font("Segoe UI", 10)
+    $formSel.Controls.Add($lbl)
+    
+    $yPos = 45
+    $checkBoxes = @()
+    foreach ($opt in $Options) {
+        $cb = New-Object System.Windows.Forms.CheckBox
+        $cb.Text = $opt
+        $cb.AutoSize = $true
+        $cb.Location = New-Object System.Drawing.Point(20, $yPos)
+        $cb.Font = New-Object System.Drawing.Font("Segoe UI", 10)
+        $cb.Checked = $true
+        $formSel.Controls.Add($cb)
+        $checkBoxes += $cb
+        $yPos += 30
+    }
+    
+    $btnOK = New-Object System.Windows.Forms.Button
+    $btnOK.Text = "OK"
+    $btnOK.Size = New-Object System.Drawing.Size(100, 35)
+    $btnOK.Location = New-Object System.Drawing.Point(140, ($yPos + 10))
+    $btnOK.DialogResult = [System.Windows.Forms.DialogResult]::OK
+    $btnOK.Font = New-Object System.Drawing.Font("Segoe UI", 10)
+    
+    $formSel.Controls.Add($btnOK)
+    $formSel.AcceptButton = $btnOK
+    
+    $result = @()
+    if ($formSel.ShowDialog($form) -eq [System.Windows.Forms.DialogResult]::OK) {
+        foreach ($cb in $checkBoxes) {
+            if ($cb.Checked) { $result += $cb.Text }
+        }
+    }
+    return $result
+}
+
 function Download-File {
     param([string]$Url, [string]$DestinationPath, [string]$Description = "File")
     try {
@@ -212,18 +261,42 @@ function Rename-PthFiles {
 }
 
 function Install-PythonPackages {
-    param([string]$PythonDir, [string]$DownloadDir)
-    Update-GUI -Status "Installing packages..." -Detail "pip, pyinstaller, fonttools" -Progress 90
+    param([string]$PythonDir, [string]$DownloadDir, [string[]]$Packages)
     $pythonExe = Join-Path $PythonDir "python.exe"
     $scriptsDir = Join-Path $PythonDir "Scripts"
     $getPipPath = Join-Path $DownloadDir "get-pip.py"
     $env:PATH = "$PythonDir;$scriptsDir;$env:PATH"
-    if (-not (Test-Path $pythonExe)) { return $false }
-    if (Test-Path $getPipPath) {
-        $proc = Start-Process -FilePath $pythonExe -ArgumentList "`"$getPipPath`" --no-warn-script-location" -Wait -PassThru -NoNewWindow
+    
+    if (-not (Test-Path $pythonExe)) { 
+        Show-Error "python.exe not found at: $pythonExe"
+        return $false 
     }
-    $proc = Start-Process -FilePath $pythonExe -ArgumentList "-m pip install --upgrade pip --no-warn-script-location" -Wait -PassThru -NoNewWindow
-    $proc = Start-Process -FilePath $pythonExe -ArgumentList "-m pip install pyinstaller fonttools --no-warn-script-location" -Wait -PassThru -NoNewWindow
+    
+    # Устанавливаем pip через get-pip.py
+    if (Test-Path $getPipPath) {
+        Update-GUI -Status "Installing pip..." -Detail "Running get-pip.py" -Progress 90
+        $proc = Start-Process -FilePath $pythonExe -ArgumentList "`"$getPipPath`" --no-warn-script-location" -Wait -PassThru -NoNewWindow
+        if ($proc.ExitCode -ne 0) {
+            Show-Error "Failed to install pip (ExitCode: $($proc.ExitCode)). Check internet connection or proxy settings."
+            return $false
+        }
+    } else {
+        Show-Error "get-pip.py not found at: $getPipPath"
+        return $false
+    }
+    
+    # Обновляем pip
+    Update-GUI -Status "Upgrading pip..." -Detail "pip install --upgrade pip" -Progress 92
+    Start-Process -FilePath $pythonExe -ArgumentList "-m pip install --upgrade pip --no-warn-script-location" -Wait -NoNewWindow
+    
+    # Устанавливаем выбранные пакеты
+    if ($Packages.Count -gt 0) {
+        $pkgList = $Packages -join " "
+        Update-GUI -Status "Installing components..." -Detail $pkgList -Progress 94
+        Start-Process -FilePath $pythonExe -ArgumentList "-m pip install $pkgList --no-warn-script-location" -Wait -NoNewWindow
+    } else {
+        Update-GUI -Status "No packages selected" -Detail "Skipping package installation" -Progress 94
+    }
     return $true
 }
 
@@ -247,8 +320,7 @@ try {
     if (-not (Test-InternetConnection -TestUrl $testHost -TimeoutSec 10)) {
         Update-GUI -Status "ERROR" -Progress 0 -Detail "No internet connection"
         Show-Error "No internet connection or python.org is unreachable"
-        $buttonClose.Visible = $true
-        $form.Refresh()
+        $buttonClose.Visible = $true; $form.Refresh()
         while (-not $global:done) { Start-Sleep -Milliseconds 100; [System.Windows.Forms.Application]::DoEvents() }
         exit 1
     }
@@ -289,8 +361,7 @@ try {
     if ($allFiles.Count -eq 0) {
         Update-GUI -Status "ERROR" -Progress 0 -Detail "No files found"
         Show-Error "No embed zip files found matching version filter"
-        $buttonClose.Visible = $true
-        $form.Refresh()
+        $buttonClose.Visible = $true; $form.Refresh()
         while (-not $global:done) { Start-Sleep -Milliseconds 100; [System.Windows.Forms.Application]::DoEvents() }
         exit 0
     }
@@ -300,38 +371,25 @@ try {
     Update-GUI -Status "Select version..." -Progress 40 -Detail "$($allFiles.Count) files found"
     $uniqueVersions = $allFiles.Version | Sort-Object { [Version]$_ } -Descending | Get-Unique
     $versionChoice = Get-UserSelection -Title "Select Python Version" -Options $uniqueVersions -Prompt "Select version:"
-    if ($versionChoice -eq 0) { 
-        Update-GUI -Status "Cancelled" -Progress 0
-        $buttonClose.Visible = $true
-        $form.Refresh()
-        while (-not $global:done) { Start-Sleep -Milliseconds 100; [System.Windows.Forms.Application]::DoEvents() }
-        exit 0 
-    }
+    if ($versionChoice -eq 0) { $buttonClose.Visible = $true; $form.Refresh(); while (-not $global:done) { Start-Sleep -Milliseconds 100; [System.Windows.Forms.Application]::DoEvents() }; exit 0 }
     $selectedVersion = $uniqueVersions[$versionChoice - 1]
     $versionFiles = $allFiles | Where-Object { $_.Version -eq $selectedVersion }
     
     Update-GUI -Status "Select architecture..." -Progress 45 -Detail "Python $selectedVersion"
     $uniqueArchs = $versionFiles.Arch | Sort-Object -Unique
     $archChoice = Get-UserSelection -Title "Select Architecture" -Options $uniqueArchs -Prompt "Select architecture:"
-    if ($archChoice -eq 0) { 
-        Update-GUI -Status "Cancelled" -Progress 0
-        $buttonClose.Visible = $true
-        $form.Refresh()
-        while (-not $global:done) { Start-Sleep -Milliseconds 100; [System.Windows.Forms.Application]::DoEvents() }
-        exit 0 
-    }
+    if ($archChoice -eq 0) { $buttonClose.Visible = $true; $form.Refresh(); while (-not $global:done) { Start-Sleep -Milliseconds 100; [System.Windows.Forms.Application]::DoEvents() }; exit 0 }
     $selectedArch = $uniqueArchs[$archChoice - 1]
     $selectedFile = $versionFiles | Where-Object { $_.Arch -eq $selectedArch } | Select-Object -First 1
-    if (-not $selectedFile) { 
-        Show-Error "File not found"
-        $buttonClose.Visible = $true
-        $form.Refresh()
-        while (-not $global:done) { Start-Sleep -Milliseconds 100; [System.Windows.Forms.Application]::DoEvents() }
-        exit 1 
-    }
-    
+    if (-not $selectedFile) { Show-Error "File not found"; $buttonClose.Visible = $true; $form.Refresh(); while (-not $global:done) { Start-Sleep -Milliseconds 100; [System.Windows.Forms.Application]::DoEvents() }; exit 1 }
+
+    # === MULTI-SELECT DIALOG ===
+    $availablePackages = @("pyinstaller", "fonttools")
+    Update-GUI -Status "Select components..." -Progress 48 -Detail "Choose packages to install"
+    $selectedPackages = Get-UserMultiSelection -Title "Select Components" -Options $availablePackages -Prompt "Select packages to install:"
+    # ===========================
+
     $destinationPath = Join-Path $downloadDir $selectedFile.FileName
-    
     Update-GUI -Status "Downloading Python..." -Progress 50 -Detail "$($selectedFile.FileName)"
     $result = Download-File -Url $selectedFile.Url -DestinationPath $destinationPath -Description "Python embed ZIP"
     if ($result -and (Test-Path $destinationPath)) {
@@ -340,28 +398,32 @@ try {
     } else {
         Update-GUI -Status "ERROR" -Progress 0 -Detail "Download failed"
         Show-Error "Python embed ZIP download failed"
-        $buttonClose.Visible = $true
-        $form.Refresh()
+        $buttonClose.Visible = $true; $form.Refresh()
         while (-not $global:done) { Start-Sleep -Milliseconds 100; [System.Windows.Forms.Application]::DoEvents() }
         exit 1
     }
     
     $extractResult = Extract-PythonZip -ZipPath $destinationPath -ExtractPath $pythonDir
-    if (-not $extractResult) {
-        Update-GUI -Status "WARNING" -Progress 70 -Detail "Extraction failed"
-        Show-Error "Extraction failed or incomplete"
-    }
+    if (-not $extractResult) { Update-GUI -Status "WARNING" -Progress 70 -Detail "Extraction failed"; Show-Error "Extraction failed or incomplete" }
     
     Rename-PthFiles -PythonPath $pythonDir
     
     Update-GUI -Status "Downloading get-pip.py..." -Progress 80 -Detail "bootstrap.pypa.io"
     $getPipPath = Join-Path $downloadDir "get-pip.py"
-    $getPipResult = Download-File -Url $getPipUrl -DestinationPath $getPipPath -Description "get-pip.py"
+    Download-File -Url $getPipUrl -DestinationPath $getPipPath -Description "get-pip.py" | Out-Null
     
-    Install-PythonPackages -PythonDir $pythonDir -DownloadDir $downloadDir
+    # Устанавливаем пакеты (функция сама проверит успешность pip)
+    $installSuccess = Install-PythonPackages -PythonDir $pythonDir -DownloadDir $downloadDir -Packages $selectedPackages
+    if (-not $installSuccess) {
+        Update-GUI -Status "Installation failed" -Progress 0 -Detail "Check error message"
+        $buttonClose.Visible = $true; $form.Refresh()
+        while (-not $global:done) { Start-Sleep -Milliseconds 100; [System.Windows.Forms.Application]::DoEvents() }
+        exit 1
+    }
     
     Update-GUI -Status "COMPLETE!" -Progress 100 -Detail "Python $selectedVersion ($selectedArch)`nAll packages installed"
-    Show-Success "Installation complete!`n`nPython: $pythonDir`nVersion: $selectedVersion $selectedArch`n`nPackages: pip, pyinstaller, fonttools"
+    $pkgReport = if ($selectedPackages.Count -gt 0) { $selectedPackages -join ', ' } else { 'pip only' }
+    Show-Success "Installation complete!`n`nPython: $pythonDir`nVersion: $selectedVersion $selectedArch`n`nPackages installed: $pkgReport"
     $buttonClose.Visible = $true
     $form.Refresh()
     
@@ -373,8 +435,7 @@ try {
 }
 
 $global:done = $true
-
-# ������ ���� �������� ���� ������������ �� ����� Close
+# Держим окно открытым пока пользователь не нажмёт Close
 while ($buttonClose.Visible -eq $true -and $form.Visible) {
     Start-Sleep -Milliseconds 100
     [System.Windows.Forms.Application]::DoEvents()
