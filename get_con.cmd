@@ -1,0 +1,364 @@
+@echo off
+setlocal EnableDelayedExpansion
+set "SCRIPT_DIR=%~dp0"
+set "SCRIPT_DIR=%SCRIPT_DIR:~0,-1%"
+set "MYSELF=%~f0"
+set "TMPSCRIPT=%TEMP%\pyembed_%RANDOM%_%RANDOM%.ps1"
+set "ver=0.2005"
+
+set "start=" & set "end="
+for /f "tokens=1,3 delims=:=>" %%a in ('findstr /N /B "</*resource" "%MYSELF%"') do (
+    if not defined start (
+        if "%%~b" equ "installer.ps1" set "start=%%a"
+    ) else if not defined end set "end=%%a"
+)
+
+set "_PS_SRC=%MYSELF%"
+set "_PS_DST=%TMPSCRIPT%"
+set "_PS_S=%start%"
+set "_PS_E=%end%"
+powershell -NoProfile -Command "$s=[int]$env:_PS_S;$e=[int]$env:_PS_E;$enc=New-Object Text.UTF8Encoding($false);$lines=[IO.File]::ReadAllLines($env:_PS_SRC,[Text.Encoding]::UTF8);[IO.File]::WriteAllLines($env:_PS_DST,$lines[$s..($e-2)],$enc)"
+
+powershell -NoProfile -ExecutionPolicy Bypass -File "%TMPSCRIPT%" -ScriptDir "%SCRIPT_DIR%"
+set "EXIT=%ERRORLEVEL%"
+del /f /q "%TMPSCRIPT%" 2>nul
+exit /b %EXIT%
+
+<resource name="installer.ps1">
+param([string]$ScriptDir)
+
+$PACKAGES = @(
+    "pyinstaller",
+    "fonttools"
+)
+
+Add-Type -AssemblyName System.IO.Compression.FileSystem
+
+[Net.ServicePointManager]::SecurityProtocol    = [Net.SecurityProtocolType]::Tls12 -bor [Net.SecurityProtocolType]::Tls13
+[Net.ServicePointManager]::DefaultConnectionLimit = 8
+
+function Write-Status {
+    param([string]$Status, [string]$Detail = "")
+    Write-Host "[*] $Status" -ForegroundColor Cyan
+    if ($Detail -ne "") { Write-Host "    $Detail" -ForegroundColor Gray }
+}
+
+function Write-OK {
+    param([string]$Message)
+    Write-Host "[+] $Message" -ForegroundColor Green
+}
+
+function Write-Fail {
+    param([string]$Message)
+    Write-Host "[!] $Message" -ForegroundColor Red
+}
+
+function Test-TcpConnect {
+    param([string]$HostName, [int]$Port = 443, [int]$TimeoutMs = 5000)
+    try {
+        $tcp = New-Object System.Net.Sockets.TcpClient
+        $ar  = $tcp.BeginConnect($HostName, $Port, $null, $null)
+        $ok  = $ar.AsyncWaitHandle.WaitOne($TimeoutMs, $false)
+        try { $tcp.EndConnect($ar) } catch { }
+        $tcp.Close()
+        return $ok
+    } catch { return $false }
+}
+
+function Download-File {
+    param(
+        [string]$Url,
+        [string]$Dest,
+        [string]$Description = "File",
+        [int]   $Retries     = 3
+    )
+    for ($attempt = 1; $attempt -le $Retries; $attempt++) {
+        if ($attempt -gt 1) {
+            Write-Status "Retry $attempt/$Retries..." $Url
+            Start-Sleep -Seconds 2
+        }
+        try {
+            if (Test-Path $Dest) { Remove-Item $Dest -Force }
+            Write-Status "Downloading $Description..." $Url
+
+            $req              = [System.Net.HttpWebRequest]::Create($Url)
+            $req.Timeout      = 120000
+            $req.ReadWriteTimeout = 120000
+            $resp             = $req.GetResponse()
+            $totalBytes       = $resp.ContentLength
+            $stream           = $resp.GetResponseStream()
+            $fs               = [System.IO.File]::Create($Dest)
+            $buf              = New-Object byte[] 65536
+            $downloaded       = [long]0
+            $lastPct          = -1
+
+            while ($true) {
+                $read = $stream.Read($buf, 0, $buf.Length)
+                if ($read -le 0) { break }
+                $fs.Write($buf, 0, $read)
+                $downloaded += $read
+                if ($totalBytes -gt 0) {
+                    $pct = [int]($downloaded * 100 / $totalBytes)
+                    if ($pct -ne $lastPct -and $pct % 10 -eq 0) {
+                        $dl  = [math]::Round($downloaded / 1MB, 1)
+                        $tot = [math]::Round($totalBytes  / 1MB, 1)
+                        Write-Host "`r    $pct% -- $dl MB / $tot MB   " -NoNewline -ForegroundColor Gray
+                        $lastPct = $pct
+                    }
+                }
+            }
+            $fs.Close()
+            $stream.Close()
+            $resp.Close()
+            Write-Host ""
+
+            if ((Test-Path $Dest) -and (Get-Item $Dest).Length -gt 0) { return $true }
+            throw "File is empty or missing after download"
+        } catch {
+            if (Test-Path $Dest) { Remove-Item $Dest -Force -ErrorAction SilentlyContinue }
+            Write-Fail "Attempt $attempt failed: $($_.Exception.Message)"
+        }
+    }
+    return $false
+}
+
+function Get-EmbedBuilds {
+    param([string]$BaseUrl)
+    Write-Status "Fetching version list..." $BaseUrl
+    try {
+        $page = Invoke-WebRequest -Uri $BaseUrl -UseBasicParsing -TimeoutSec 30
+    } catch {
+        throw "Cannot fetch python.org index: $($_.Exception.Message)"
+    }
+    $versions = @(
+        $page.Links |
+        Where-Object { $_.href -match '^(3\.\d+\.\d+)/$' } |
+        ForEach-Object { $Matches[1] } |
+        Sort-Object { [Version]$_ } -Descending
+    )
+    if ($versions.Count -eq 0) { throw "No Python 3.x versions found on python.org" }
+
+    $builds = [System.Collections.Generic.List[PSCustomObject]]::new()
+    $total  = $versions.Count
+    $cur    = 0
+    foreach ($ver in $versions) {
+        $cur++
+        Write-Host "`r    Scanning $cur/$total : $ver   " -NoNewline -ForegroundColor Gray
+        try {
+            $vpage = Invoke-WebRequest -Uri "$BaseUrl$ver/" -UseBasicParsing -TimeoutSec 10
+            foreach ($link in $vpage.Links) {
+                if ($link.href -match '^python-(\d+\.\d+\.\d+)-embed-(amd64|win32)\.zip$') {
+                    $builds.Add([PSCustomObject]@{
+                        Version  = $Matches[1]
+                        Arch     = $Matches[2]
+                        FileName = $link.href
+                        Url      = "$BaseUrl$ver/$($link.href)"
+                    })
+                }
+            }
+        } catch { }
+    }
+    Write-Host ""
+    return $builds
+}
+
+function Select-FromList {
+    param([string]$Title, [string[]]$Items)
+    Write-Host ""
+    Write-Host $Title -ForegroundColor Cyan
+    for ($i = 0; $i -lt $Items.Count; $i++) {
+        Write-Host "  [$($i+1)] $($Items[$i])" -ForegroundColor White
+    }
+    Write-Host ""
+    while ($true) {
+        $input = Read-Host "Enter number (1-$($Items.Count))"
+        $n = 0
+        if ([int]::TryParse($input, [ref]$n) -and $n -ge 1 -and $n -le $Items.Count) {
+            return $n - 1
+        }
+        Write-Host "  Invalid input, try again" -ForegroundColor Yellow
+    }
+}
+
+function Invoke-Python {
+    param([string]$PythonExe, [string]$Arguments, [string]$StatusText)
+    Write-Status $StatusText
+    $p = Start-Process -FilePath $PythonExe -ArgumentList $Arguments `
+                       -NoNewWindow -Wait -PassThru
+    $script:_lastErr = ""
+    return $p.ExitCode
+}
+
+function Install-Pip {
+    param([string]$PythonDir, [string]$DownloadDir)
+    $py         = Join-Path $PythonDir "python.exe"
+    $getPipDest = Join-Path $DownloadDir "get-pip.py"
+
+    $ok = Download-File -Url "https://bootstrap.pypa.io/get-pip.py" `
+                        -Dest $getPipDest -Description "get-pip.py"
+
+    if ($ok) {
+        foreach ($f in (Get-ChildItem $PythonDir -Filter "*._pth" -File -ErrorAction SilentlyContinue)) {
+            Rename-Item $f.FullName "$($f.FullName).bak" -Force -ErrorAction SilentlyContinue
+        }
+        $exit = Invoke-Python -PythonExe $py `
+                    -Arguments "`"$getPipDest`" --no-warn-script-location --no-cache-dir" `
+                    -StatusText "Installing pip via get-pip.py..."
+        if ($exit -eq 0) { Write-OK "pip installed via get-pip.py"; return $true }
+        Write-Fail "get-pip.py failed: $($script:_lastErr)"
+        Write-Status "Trying pip wheel fallback..."
+    } else {
+        Write-Fail "get-pip.py unavailable, trying pip wheel..."
+    }
+
+    Write-Status "Fetching pip wheel URL..." "pypi.org/pypi/pip/json"
+    try {
+        $json   = Invoke-WebRequest -Uri "https://pypi.org/pypi/pip/json" -UseBasicParsing -TimeoutSec 15
+        $whlUrl = ($json.Content | ConvertFrom-Json).urls |
+                  Where-Object { $_.filename -match '^pip-[\d.]+-py3-none-any\.whl$' } |
+                  Select-Object -ExpandProperty url -First 1
+    } catch { $whlUrl = "" }
+
+    if (-not $whlUrl) { Write-Fail "Failed to get pip wheel URL from PyPI"; return $false }
+
+    $whlDest = Join-Path $DownloadDir "pip.whl"
+    $ok = Download-File -Url $whlUrl -Dest $whlDest -Description "pip wheel"
+    if (-not $ok) { Write-Fail "Failed to download pip wheel"; return $false }
+
+    Write-Status "Unpacking pip wheel..."
+    $siteDir = Join-Path $PythonDir "site-packages"
+    New-Item $siteDir -ItemType Directory -Force | Out-Null
+    try {
+        [System.IO.Compression.ZipFile]::ExtractToDirectory($whlDest, $siteDir)
+    } catch {
+        Write-Fail "Failed to unpack pip wheel: $($_.Exception.Message)"
+        return $false
+    }
+
+    $pthFile = Get-ChildItem $PythonDir -Filter "*._pth*" -File -ErrorAction SilentlyContinue |
+               Select-Object -First 1
+    if ($pthFile) {
+        $pthPath = $pthFile.FullName -replace '\.bak$', ''
+        $txt = Get-Content $pthFile.FullName -Encoding UTF8
+        $txt = @($txt | ForEach-Object {
+            if ($_ -match '^#\s*import site') { "import site" } else { $_ }
+        })
+        if (-not ($txt -contains "import site"))    { $txt = @("import site") + $txt }
+        if (-not ($txt -contains "site-packages"))  { $txt = $txt + @("site-packages") }
+        [System.IO.File]::WriteAllLines($pthPath, $txt, (New-Object Text.UTF8Encoding($false)))
+    }
+
+    $exit = Invoke-Python -PythonExe $py -Arguments "-m pip --version --no-cache-dir" `
+                -StatusText "Verifying pip..."
+    if ($exit -ne 0) { Write-Fail "pip verification failed: $($script:_lastErr)"; return $false }
+    Write-OK "pip installed via wheel"
+    return $true
+}
+
+function Install-Packages {
+    param([string]$PythonDir, [string[]]$Packages)
+    if ($Packages.Count -eq 0) { return $true }
+    $py      = Join-Path $PythonDir "python.exe"
+    $pkgList = $Packages -join " "
+    $exit    = Invoke-Python -PythonExe $py `
+                   -Arguments "-m pip install $pkgList --no-warn-script-location --no-cache-dir" `
+                   -StatusText "Installing packages: $pkgList"
+    if ($exit -ne 0) { Write-Fail "Package install failed (exit $exit): $($script:_lastErr)"; return $false }
+    Write-OK "Packages installed: $pkgList"
+    return $true
+}
+
+# ==================== MAIN ====================
+$downloadDir = Join-Path $ScriptDir "download"
+$pythonDir   = Join-Path $ScriptDir "python"
+$baseUrl     = "https://www.python.org/ftp/python/"
+
+Write-Host ""
+Write-Host "Python Embed Installer (console)" -ForegroundColor Cyan
+if ($PACKAGES.Count -gt 0) {
+    Write-Host "Packages: $($PACKAGES -join ', ')" -ForegroundColor White
+} else {
+    Write-Host "Packages: pip only" -ForegroundColor White
+}
+Write-Host ""
+
+try {
+    Write-Status "Checking connection..." "www.python.org:443"
+    if (-not (Test-TcpConnect -HostName "www.python.org")) {
+        Write-Fail "No internet connection or python.org is unreachable"
+        exit 1
+    }
+    Write-OK "Connection OK"
+
+    foreach ($dir in @($downloadDir, $pythonDir)) {
+        if (Test-Path $dir) { Remove-Item $dir -Recurse -Force -ErrorAction Stop }
+    }
+    New-Item $downloadDir -ItemType Directory -Force | Out-Null
+
+    $builds = Get-EmbedBuilds -BaseUrl $baseUrl
+    if ($builds.Count -eq 0) {
+        Write-Fail "No embed builds found on python.org"
+        exit 1
+    }
+
+    $uniqVer = @($builds | Select-Object -ExpandProperty Version -Unique |
+                 Sort-Object { [Version]$_ } -Descending)
+    $vi = Select-FromList -Title "Select Python version:" -Items $uniqVer
+    $selVer = $uniqVer[$vi]
+
+    $verBuilds = @($builds | Where-Object { $_.Version -eq $selVer })
+    $uniqArch  = @($verBuilds | Select-Object -ExpandProperty Arch -Unique | Sort-Object)
+    if ($uniqArch.Count -eq 1) {
+        $selArch = $uniqArch[0]
+        Write-Host "  Architecture: $selArch (only available)" -ForegroundColor Gray
+    } else {
+        $ai = Select-FromList -Title "Select architecture:" -Items $uniqArch
+        $selArch = $uniqArch[$ai]
+    }
+
+    $sel     = $verBuilds | Where-Object { $_.Arch -eq $selArch } | Select-Object -First 1
+    $zipDest = Join-Path $downloadDir $sel.FileName
+    $ok = Download-File -Url $sel.Url -Dest $zipDest `
+                        -Description "Python $($sel.Version) [$($sel.Arch)]"
+    if (-not $ok) { Write-Fail "Python ZIP download failed"; exit 1 }
+    Write-OK "Downloaded: $([math]::Round((Get-Item $zipDest).Length / 1MB, 1)) MB"
+
+    Write-Status "Extracting..." "To: $pythonDir"
+    New-Item $pythonDir -ItemType Directory -Force | Out-Null
+    try {
+        [System.IO.Compression.ZipFile]::ExtractToDirectory($zipDest, $pythonDir)
+    } catch {
+        Write-Fail "Extraction failed: $($_.Exception.Message)"
+        exit 1
+    }
+    if (-not (Test-Path (Join-Path $pythonDir "python.exe"))) {
+        Write-Fail "python.exe not found after extraction"
+        exit 1
+    }
+    Write-OK "Extracted to: $pythonDir"
+
+    $ok = Install-Pip -PythonDir $pythonDir -DownloadDir $downloadDir
+    if (-not $ok) { exit 1 }
+
+    $ok = Install-Packages -PythonDir $pythonDir -Packages $PACKAGES
+    if (-not $ok) { exit 1 }
+
+    Remove-Item $downloadDir -Recurse -Force -ErrorAction SilentlyContinue
+
+    Write-Host ""
+    Write-Host "==================== COMPLETE ====================" -ForegroundColor Green
+    Write-Host "Location : $pythonDir"                              -ForegroundColor White
+    Write-Host "Version  : $($sel.Version) [$($sel.Arch)]"          -ForegroundColor White
+    if ($PACKAGES.Count -gt 0) {
+        Write-Host "Installed: pip + $($PACKAGES -join ', ')"       -ForegroundColor White
+    } else {
+        Write-Host "Installed: pip only"                            -ForegroundColor White
+    }
+    Write-Host "==================================================" -ForegroundColor Green
+    Write-Host ""
+
+} catch {
+    Write-Fail "FATAL ERROR: $($_.Exception.Message)"
+    exit 1
+}
+</resource>
