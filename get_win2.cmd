@@ -4,6 +4,7 @@ set "SCRIPT_DIR=%~dp0"
 set "SCRIPT_DIR=%SCRIPT_DIR:~0,-1%"
 set "MYSELF=%~f0"
 set "TMPSCRIPT=%TEMP%\pyembed_%RANDOM%_%RANDOM%.ps1"
+set "ver=0.2005"
 
 set "start=" & set "end="
 for /f "tokens=1,3 delims=:=>" %%a in ('findstr /N /B "</*resource" "%MYSELF%"') do (
