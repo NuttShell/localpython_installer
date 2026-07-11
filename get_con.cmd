@@ -1,31 +1,26 @@
 @echo off
 setlocal EnableDelayedExpansion
-set "SCRIPT_DIR=%~dp0"
-set "SCRIPT_DIR=%SCRIPT_DIR:~0,-1%"
-set "MYSELF=%~f0"
-set "TMPSCRIPT=%TEMP%\pyembed_%RANDOM%_%RANDOM%.ps1"
-set "ver=0.2005"
+set "SCRIPTDIR=%~dp0"
+set "SCRIPTDIR=%SCRIPTDIR:~0,-1%"
+set "PS1FILE=%TEMP%\pspython_%RANDOM%.ps1"
+set "version=26.0711"
 
-set "start=" & set "end="
-for /f "tokens=1,3 delims=:=>" %%a in ('findstr /N /B "</*resource" "%MYSELF%"') do (
-    if not defined start (
-        if "%%~b" equ "installer.ps1" set "start=%%a"
-    ) else if not defined end set "end=%%a"
+powershell -NoProfile -Command "$c = Get-Content -LiteralPath '%~f0' -Raw -Encoding UTF8; $idx = $c.LastIndexOf('REM_PS1_CODE_START'); $code = $c.Substring($idx + 18).TrimStart([char]13,[char]10); Set-Content -LiteralPath '%PS1FILE%' -Value $code -Encoding UTF8 -NoNewline"
+
+powershell -NoProfile -ExecutionPolicy Bypass -File "%PS1FILE%" -ScriptDir "%SCRIPTDIR%"
+
+set "RC=%errorlevel%"
+
+del "%PS1FILE%" >nul 2>&1
+
+if not "%RC%"=="0" pause
+exit /b %RC%
+
+REM_PS1_CODE_START
+
+param(
+    [string]$ScriptDir
 )
-
-set "_PS_SRC=%MYSELF%"
-set "_PS_DST=%TMPSCRIPT%"
-set "_PS_S=%start%"
-set "_PS_E=%end%"
-powershell -NoProfile -Command "$s=[int]$env:_PS_S;$e=[int]$env:_PS_E;$enc=New-Object Text.UTF8Encoding($false);$lines=[IO.File]::ReadAllLines($env:_PS_SRC,[Text.Encoding]::UTF8);[IO.File]::WriteAllLines($env:_PS_DST,$lines[$s..($e-2)],$enc)"
-
-powershell -NoProfile -ExecutionPolicy Bypass -File "%TMPSCRIPT%" -ScriptDir "%SCRIPT_DIR%"
-set "EXIT=%ERRORLEVEL%"
-del /f /q "%TMPSCRIPT%" 2>nul
-exit /b %EXIT%
-
-<resource name="installer.ps1">
-param([string]$ScriptDir)
 
 $PACKAGES = @(
     "pyinstaller",
@@ -356,9 +351,9 @@ try {
     }
     Write-Host "==================================================" -ForegroundColor Green
     Write-Host ""
+	Read-Host -Prompt "Press any key to continue"
 
 } catch {
     Write-Fail "FATAL ERROR: $($_.Exception.Message)"
     exit 1
 }
-</resource>
