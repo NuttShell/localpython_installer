@@ -414,7 +414,7 @@ function Install-Requirements {
     param([string]$PythonDir, [string]$RequirementsFile)
     $py   = Join-Path $PythonDir "python.exe"
     $exit = Invoke-Python -PythonExe $py `
-                -Arguments "-m pip install -r `"$RequirementsFile`" --no-warn-script-location" `
+                -Arguments "-m pip install -r `"$RequirementsFile`" --no-warn-script-location --no-cache-dir" `
                 -StatusText "Installing packages..." -Progress 93
     if ($exit -ne 0) {
         $progressBar.Visible = $false
