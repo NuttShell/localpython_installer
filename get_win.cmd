@@ -3,7 +3,7 @@ setlocal EnableDelayedExpansion
 set "SCRIPTDIR=%~dp0"
 set "SCRIPTDIR=%SCRIPTDIR:~0,-1%"
 set "PS1FILE=%TEMP%\pspython_%RANDOM%.ps1"
-set "version=26.0711"
+set "version=26.0730"
 
 powershell -NoProfile -Command "$c = Get-Content -LiteralPath '%~f0' -Raw -Encoding UTF8; $idx = $c.LastIndexOf('REM_PS1_CODE_START'); $code = $c.Substring($idx + 18).TrimStart([char]13,[char]10); Set-Content -LiteralPath '%PS1FILE%' -Value $code -Encoding UTF8 -NoNewline"
 
@@ -20,6 +20,11 @@ REM_PS1_CODE_START
 
 param(
     [string]$ScriptDir
+)
+
+$DEFAULT_PACKAGES = @(
+    "pyinstaller",
+    "fonttools"
 )
 
 Add-Type -Name WinUtil -Namespace PyEmbed -MemberDefinition '
@@ -424,6 +429,22 @@ function Install-Requirements {
     return $true
 }
 
+function Install-Packages {
+    param([string]$PythonDir, [string[]]$Packages)
+    if ($Packages.Count -eq 0) { return $true }
+    $py      = Join-Path $PythonDir "python.exe"
+    $pkgList = $Packages -join " "
+    $exit    = Invoke-Python -PythonExe $py `
+                   -Arguments "-m pip install $pkgList --no-warn-script-location --no-cache-dir" `
+                   -StatusText "Installing packages: $pkgList" -Progress 93
+    if ($exit -ne 0) {
+        $progressBar.Visible = $false
+        Show-Error "Package install failed (exit $exit)`n`n$($script:_lastErr)"
+        return $false
+    }
+    return $true
+}
+
 $form.Add_Shown({
     $form.Activate()
     Update-GUI -Status "Starting..." -Progress 0 -Detail "Please wait..."
@@ -475,7 +496,8 @@ $form.Add_Shown({
             Update-GUI -Status "requirements.txt found" -Progress 46 `
                        -Detail ($reqPackages -join "`n")
         } else {
-            Update-GUI -Status "No requirements.txt -- pip only" -Progress 46 -Detail ""
+            Update-GUI -Status "No requirements.txt -- installing defaults" -Progress 46 `
+                       -Detail ($DEFAULT_PACKAGES -join "`n")
         }
 
         $zipDest = Join-Path $downloadDir $sel.FileName
@@ -511,15 +533,17 @@ $form.Add_Shown({
 
         if ($hasRequirements) {
             $ok = Install-Requirements -PythonDir $pythonDir -RequirementsFile $requirementsFile
-            if (-not $ok) { $btnClose.Visible = $true; return }
+        } else {
+            $ok = Install-Packages -PythonDir $pythonDir -Packages $DEFAULT_PACKAGES
         }
+        if (-not $ok) { $btnClose.Visible = $true; return }
 
         Remove-Item $downloadDir -Recurse -Force -ErrorAction SilentlyContinue
 
         if ($hasRequirements) {
             $rep = "pip + $($reqPackages.Count) package(s)"
         } else {
-            $rep = "pip only"
+            $rep = "pip + $($DEFAULT_PACKAGES -join ', ')"
         }
         Update-GUI -Status "COMPLETE!" -Detail "Location : $pythonDir`nVersion  : $($sel.Version) [$($sel.Arch)]`nInstalled: $rep"
         $progressBar.Visible = $false
