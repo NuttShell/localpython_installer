@@ -3,7 +3,7 @@ setlocal EnableDelayedExpansion
 set "SCRIPTDIR=%~dp0"
 set "SCRIPTDIR=%SCRIPTDIR:~0,-1%"
 set "PS1FILE=%TEMP%\pspython_%RANDOM%.ps1"
-set "version=26.0711"
+set "version=26.0730"
 
 powershell -NoProfile -Command "$c = Get-Content -LiteralPath '%~f0' -Raw -Encoding UTF8; $idx = $c.LastIndexOf('REM_PS1_CODE_START'); $code = $c.Substring($idx + 18).TrimStart([char]13,[char]10); Set-Content -LiteralPath '%PS1FILE%' -Value $code -Encoding UTF8 -NoNewline"
 
@@ -175,6 +175,33 @@ function Select-FromList {
     }
 }
 
+function Read-PyConfig {
+    param([string]$Path)
+    if (-not (Test-Path $Path)) { return $null }
+
+    try {
+        $raw = Get-Content -LiteralPath $Path -Raw -Encoding UTF8
+        $cfg = $raw | ConvertFrom-Json
+    } catch {
+        throw "pyconfig.json is not valid JSON: $($_.Exception.Message)"
+    }
+
+    if (-not $cfg.version -or -not $cfg.arch) {
+        throw "pyconfig.json must contain both 'version' and 'arch' fields"
+    }
+    if ($cfg.version -notmatch '^\d+\.\d+\.\d+$') {
+        throw "pyconfig.json: 'version' must look like '3.12.4' (got '$($cfg.version)')"
+    }
+    if ($cfg.arch -notmatch '^(amd64|win32)$') {
+        throw "pyconfig.json: 'arch' must be 'amd64' or 'win32' (got '$($cfg.arch)')"
+    }
+
+    return [PSCustomObject]@{
+        Version = [string]$cfg.version
+        Arch    = [string]$cfg.arch
+    }
+}
+
 function Invoke-Python {
     param([string]$PythonExe, [string]$Arguments, [string]$StatusText)
     Write-Status $StatusText
@@ -267,6 +294,7 @@ function Install-Packages {
 $downloadDir = Join-Path $ScriptDir "download"
 $pythonDir   = Join-Path $ScriptDir "python"
 $baseUrl     = "https://www.python.org/ftp/python/"
+$configFile  = Join-Path $ScriptDir "pyconfig.json"
 
 Write-Host ""
 Write-Host "Python Embed Installer (console)" -ForegroundColor Cyan
@@ -285,6 +313,16 @@ try {
     }
     Write-OK "Connection OK"
 
+    try {
+        $pyConfig = Read-PyConfig -Path $configFile
+    } catch {
+        Write-Fail $_.Exception.Message
+        exit 1
+    }
+    if ($pyConfig) {
+        Write-OK "pyconfig.json found: Python $($pyConfig.Version) [$($pyConfig.Arch)]"
+    }
+
     foreach ($dir in @($downloadDir, $pythonDir)) {
         if (Test-Path $dir) { Remove-Item $dir -Recurse -Force -ErrorAction Stop }
     }
@@ -296,22 +334,38 @@ try {
         exit 1
     }
 
-    $uniqVer = @($builds | Select-Object -ExpandProperty Version -Unique |
-                 Sort-Object { [Version]$_ } -Descending)
-    $vi = Select-FromList -Title "Select Python version:" -Items $uniqVer
-    $selVer = $uniqVer[$vi]
-
-    $verBuilds = @($builds | Where-Object { $_.Version -eq $selVer })
-    $uniqArch  = @($verBuilds | Select-Object -ExpandProperty Arch -Unique | Sort-Object)
-    if ($uniqArch.Count -eq 1) {
-        $selArch = $uniqArch[0]
-        Write-Host "  Architecture: $selArch (only available)" -ForegroundColor Gray
+    if ($pyConfig) {
+        $sel = $builds | Where-Object { $_.Version -eq $pyConfig.Version -and $_.Arch -eq $pyConfig.Arch } |
+               Select-Object -First 1
+        if (-not $sel) {
+            Write-Fail "Requested Python $($pyConfig.Version) [$($pyConfig.Arch)] not found on python.org"
+            $availArch = @($builds | Where-Object { $_.Version -eq $pyConfig.Version } |
+                           Select-Object -ExpandProperty Arch -Unique)
+            if ($availArch.Count -gt 0) {
+                Write-Host "  Available architectures for $($pyConfig.Version): $($availArch -join ', ')" -ForegroundColor Yellow
+            } else {
+                Write-Host "  Version $($pyConfig.Version) was not found on python.org at all" -ForegroundColor Yellow
+            }
+            exit 1
+        }
     } else {
-        $ai = Select-FromList -Title "Select architecture:" -Items $uniqArch
-        $selArch = $uniqArch[$ai]
-    }
+        $uniqVer = @($builds | Select-Object -ExpandProperty Version -Unique |
+                     Sort-Object { [Version]$_ } -Descending)
+        $vi = Select-FromList -Title "Select Python version:" -Items $uniqVer
+        $selVer = $uniqVer[$vi]
 
-    $sel     = $verBuilds | Where-Object { $_.Arch -eq $selArch } | Select-Object -First 1
+        $verBuilds = @($builds | Where-Object { $_.Version -eq $selVer })
+        $uniqArch  = @($verBuilds | Select-Object -ExpandProperty Arch -Unique | Sort-Object)
+        if ($uniqArch.Count -eq 1) {
+            $selArch = $uniqArch[0]
+            Write-Host "  Architecture: $selArch (only available)" -ForegroundColor Gray
+        } else {
+            $ai = Select-FromList -Title "Select architecture:" -Items $uniqArch
+            $selArch = $uniqArch[$ai]
+        }
+
+        $sel = $verBuilds | Where-Object { $_.Arch -eq $selArch } | Select-Object -First 1
+    }
     $zipDest = Join-Path $downloadDir $sel.FileName
     $ok = Download-File -Url $sel.Url -Dest $zipDest `
                         -Description "Python $($sel.Version) [$($sel.Arch)]"
