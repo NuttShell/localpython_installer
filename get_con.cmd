@@ -202,6 +202,38 @@ function Read-PyConfig {
     }
 }
 
+function Write-PyConfig {
+    param([string]$Path, [string]$Version, [string]$Arch)
+    try {
+        $obj  = [PSCustomObject]@{ version = $Version; arch = $Arch }
+        $json = $obj | ConvertTo-Json
+        Set-Content -LiteralPath $Path -Value $json -Encoding UTF8
+        Write-OK "pyconfig.json updated: Python $Version [$Arch]"
+    } catch {
+        Write-Fail "Could not write pyconfig.json: $($_.Exception.Message)"
+    }
+}
+
+function Select-BuildInteractive {
+    param([array]$Builds)
+    $uniqVer = @($Builds | Select-Object -ExpandProperty Version -Unique |
+                 Sort-Object { [Version]$_ } -Descending)
+    $vi = Select-FromList -Title "Select Python version:" -Items $uniqVer
+    $selVer = $uniqVer[$vi]
+
+    $verBuilds = @($Builds | Where-Object { $_.Version -eq $selVer })
+    $uniqArch  = @($verBuilds | Select-Object -ExpandProperty Arch -Unique | Sort-Object)
+    if ($uniqArch.Count -eq 1) {
+        $selArch = $uniqArch[0]
+        Write-Host "  Architecture: $selArch (only available)" -ForegroundColor Gray
+    } else {
+        $ai = Select-FromList -Title "Select architecture:" -Items $uniqArch
+        $selArch = $uniqArch[$ai]
+    }
+
+    return $verBuilds | Where-Object { $_.Arch -eq $selArch } | Select-Object -First 1
+}
+
 function Invoke-Python {
     param([string]$PythonExe, [string]$Arguments, [string]$StatusText)
     Write-Status $StatusText
@@ -346,25 +378,19 @@ try {
             } else {
                 Write-Host "  Version $($pyConfig.Version) was not found on python.org at all" -ForegroundColor Yellow
             }
-            exit 1
+
+            Write-Host ""
+            while ($true) {
+                $choice = (Read-Host "[S]elect version manually / [C]ancel").Trim().ToUpper()
+                if ($choice -eq "C") { exit 1 }
+                if ($choice -eq "S") { break }
+                Write-Host "  Invalid input, try again" -ForegroundColor Yellow
+            }
+            $sel = Select-BuildInteractive -Builds $builds
+            Write-PyConfig -Path $configFile -Version $sel.Version -Arch $sel.Arch
         }
     } else {
-        $uniqVer = @($builds | Select-Object -ExpandProperty Version -Unique |
-                     Sort-Object { [Version]$_ } -Descending)
-        $vi = Select-FromList -Title "Select Python version:" -Items $uniqVer
-        $selVer = $uniqVer[$vi]
-
-        $verBuilds = @($builds | Where-Object { $_.Version -eq $selVer })
-        $uniqArch  = @($verBuilds | Select-Object -ExpandProperty Arch -Unique | Sort-Object)
-        if ($uniqArch.Count -eq 1) {
-            $selArch = $uniqArch[0]
-            Write-Host "  Architecture: $selArch (only available)" -ForegroundColor Gray
-        } else {
-            $ai = Select-FromList -Title "Select architecture:" -Items $uniqArch
-            $selArch = $uniqArch[$ai]
-        }
-
-        $sel = $verBuilds | Where-Object { $_.Arch -eq $selArch } | Select-Object -First 1
+        $sel = Select-BuildInteractive -Builds $builds
     }
     $zipDest = Join-Path $downloadDir $sel.FileName
     $ok = Download-File -Url $sel.Url -Dest $zipDest `
