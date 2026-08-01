@@ -3,26 +3,34 @@ setlocal EnableDelayedExpansion
 set "SCRIPTDIR=%~dp0"
 set "SCRIPTDIR=%SCRIPTDIR:~0,-1%"
 set "PS1FILE=%TEMP%\pspython_%RANDOM%.ps1"
-set "version=26.0730"
+set "version=26.0801"
 
 powershell -NoProfile -Command "$c = Get-Content -LiteralPath '%~f0' -Raw -Encoding UTF8; $idx = $c.LastIndexOf('REM_PS1_CODE_START'); $code = $c.Substring($idx + 18).TrimStart([char]13,[char]10); Set-Content -LiteralPath '%PS1FILE%' -Value $code -Encoding UTF8 -NoNewline"
 
-powershell -NoProfile -ExecutionPolicy Bypass -File "%PS1FILE%" -ScriptDir "%SCRIPTDIR%"
+set "NOWAIT="
+for %%A in (%*) do (
+    if /I "%%~A"=="-nowait" set "NOWAIT=1"
+)
+
+powershell -NoProfile -ExecutionPolicy Bypass -File "%PS1FILE%" -ScriptDir "%SCRIPTDIR%" %*
 
 set "RC=%errorlevel%"
 
 del "%PS1FILE%" >nul 2>&1
 
-if not "%RC%"=="0" pause
+if not "%RC%"=="0" if not defined NOWAIT pause
 exit /b %RC%
 
 REM_PS1_CODE_START
 
 param(
-    [string]$ScriptDir
+    [string]$ScriptDir,
+    [string]$PyVer = "",
+    [string]$Arch  = "",
+    [switch]$NoWait
 )
 
-$PACKAGES = @(
+$DEFAULT_PACKAGES = @(
     "pyinstaller",
     "fonttools"
 )
@@ -175,6 +183,20 @@ function Select-FromList {
     }
 }
 
+function Test-PyConfigValues {
+    param([string]$Version, [string]$Arch, [string]$Source)
+    if ($Version -notmatch '^\d+\.\d+\.\d+$') {
+        throw "${Source}: version must look like '3.12.4' (got '$Version')"
+    }
+    if ($Arch -notmatch '^(amd64|win32)$') {
+        throw "${Source}: arch must be 'amd64' or 'win32' (got '$Arch')"
+    }
+    return [PSCustomObject]@{
+        Version = $Version
+        Arch    = $Arch
+    }
+}
+
 function Read-PyConfig {
     param([string]$Path)
     if (-not (Test-Path $Path)) { return $null }
@@ -189,17 +211,17 @@ function Read-PyConfig {
     if (-not $cfg.version -or -not $cfg.arch) {
         throw "pyconfig.json must contain both 'version' and 'arch' fields"
     }
-    if ($cfg.version -notmatch '^\d+\.\d+\.\d+$') {
-        throw "pyconfig.json: 'version' must look like '3.12.4' (got '$($cfg.version)')"
-    }
-    if ($cfg.arch -notmatch '^(amd64|win32)$') {
-        throw "pyconfig.json: 'arch' must be 'amd64' or 'win32' (got '$($cfg.arch)')"
-    }
 
-    return [PSCustomObject]@{
-        Version = [string]$cfg.version
-        Arch    = [string]$cfg.arch
+    return Test-PyConfigValues -Version ([string]$cfg.version) -Arch ([string]$cfg.arch) -Source "pyconfig.json"
+}
+
+function Read-CliConfig {
+    param([string]$PyVer, [string]$Arch)
+    if ($PyVer -eq "" -and $Arch -eq "") { return $null }
+    if ($PyVer -eq "" -or  $Arch -eq "") {
+        throw "Both -PyVer and -Arch must be specified together on the command line"
     }
+    return Test-PyConfigValues -Version $PyVer -Arch $Arch -Source "command-line arguments"
 }
 
 function Write-PyConfig {
@@ -309,6 +331,28 @@ function Install-Pip {
     return $true
 }
 
+function Read-Requirements {
+    param([string]$Path)
+    if (-not (Test-Path $Path)) { return [string[]]@() }
+    return @(Get-Content $Path -Encoding UTF8 -ErrorAction SilentlyContinue |
+             Where-Object { $_ -and $_.Trim() -ne "" -and -not $_.TrimStart().StartsWith("#") } |
+             ForEach-Object { $_.Trim() })
+}
+
+function Install-Requirements {
+    param([string]$PythonDir, [string]$RequirementsFile)
+    $py   = Join-Path $PythonDir "python.exe"
+    $exit = Invoke-Python -PythonExe $py `
+                -Arguments "-m pip install -r `"$RequirementsFile`" --no-warn-script-location --no-cache-dir" `
+                -StatusText "Installing packages from requirements.txt..."
+    if ($exit -ne 0) {
+        Write-Fail "requirements.txt install failed (exit $exit): $($script:_lastErr)"
+        return $false
+    }
+    Write-OK "Packages installed from requirements.txt"
+    return $true
+}
+
 function Install-Packages {
     param([string]$PythonDir, [string[]]$Packages)
     if ($Packages.Count -eq 0) { return $true }
@@ -323,17 +367,21 @@ function Install-Packages {
 }
 
 # ==================== MAIN ====================
-$downloadDir = Join-Path $ScriptDir "download"
-$pythonDir   = Join-Path $ScriptDir "python"
-$baseUrl     = "https://www.python.org/ftp/python/"
-$configFile  = Join-Path $ScriptDir "pyconfig.json"
+$downloadDir      = Join-Path $ScriptDir "download"
+$pythonDir        = Join-Path $ScriptDir "python"
+$baseUrl          = "https://www.python.org/ftp/python/"
+$configFile       = Join-Path $ScriptDir "pyconfig.json"
+$requirementsFile = Join-Path $ScriptDir "requirements.txt"
+
+$reqPackages     = Read-Requirements -Path $requirementsFile
+$hasRequirements = $reqPackages.Count -gt 0
 
 Write-Host ""
 Write-Host "Python Embed Installer (console)" -ForegroundColor Cyan
-if ($PACKAGES.Count -gt 0) {
-    Write-Host "Packages: $($PACKAGES -join ', ')" -ForegroundColor White
+if ($hasRequirements) {
+    Write-Host "Packages: from requirements.txt ($($reqPackages.Count) entries)" -ForegroundColor White
 } else {
-    Write-Host "Packages: pip only" -ForegroundColor White
+    Write-Host "Packages: $($DEFAULT_PACKAGES -join ', ')" -ForegroundColor White
 }
 Write-Host ""
 
@@ -346,12 +394,22 @@ try {
     Write-OK "Connection OK"
 
     try {
-        $pyConfig = Read-PyConfig -Path $configFile
+        $cliConfig  = Read-CliConfig -PyVer $PyVer -Arch $Arch
+        $jsonConfig = Read-PyConfig  -Path $configFile
     } catch {
         Write-Fail $_.Exception.Message
         exit 1
     }
-    if ($pyConfig) {
+
+    $pyConfig = $null
+    if ($cliConfig) {
+        $pyConfig = $cliConfig
+        Write-OK "Using command-line arguments: Python $($pyConfig.Version) [$($pyConfig.Arch)]"
+        if ($jsonConfig) {
+            Write-Host "  (pyconfig.json is also present but ignored -- command-line arguments take priority)" -ForegroundColor Gray
+        }
+    } elseif ($jsonConfig) {
+        $pyConfig = $jsonConfig
         Write-OK "pyconfig.json found: Python $($pyConfig.Version) [$($pyConfig.Arch)]"
     }
 
@@ -415,7 +473,11 @@ try {
     $ok = Install-Pip -PythonDir $pythonDir -DownloadDir $downloadDir
     if (-not $ok) { exit 1 }
 
-    $ok = Install-Packages -PythonDir $pythonDir -Packages $PACKAGES
+    if ($hasRequirements) {
+        $ok = Install-Requirements -PythonDir $pythonDir -RequirementsFile $requirementsFile
+    } else {
+        $ok = Install-Packages -PythonDir $pythonDir -Packages $DEFAULT_PACKAGES
+    }
     if (-not $ok) { exit 1 }
 
     Remove-Item $downloadDir -Recurse -Force -ErrorAction SilentlyContinue
@@ -424,14 +486,14 @@ try {
     Write-Host "==================== COMPLETE ====================" -ForegroundColor Green
     Write-Host "Location : $pythonDir"                              -ForegroundColor White
     Write-Host "Version  : $($sel.Version) [$($sel.Arch)]"          -ForegroundColor White
-    if ($PACKAGES.Count -gt 0) {
-        Write-Host "Installed: pip + $($PACKAGES -join ', ')"       -ForegroundColor White
+    if ($hasRequirements) {
+        Write-Host "Installed: pip + $($reqPackages.Count) package(s) from requirements.txt" -ForegroundColor White
     } else {
-        Write-Host "Installed: pip only"                            -ForegroundColor White
+        Write-Host "Installed: pip + $($DEFAULT_PACKAGES -join ', ')" -ForegroundColor White
     }
     Write-Host "==================================================" -ForegroundColor Green
     Write-Host ""
-	Read-Host -Prompt "Press any key to continue"
+	if (-not $NoWait) { Read-Host -Prompt "Press any key to continue" }
 
 } catch {
     Write-Fail "FATAL ERROR: $($_.Exception.Message)"
