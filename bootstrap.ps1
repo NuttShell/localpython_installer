@@ -7,7 +7,7 @@
 # Если нужно передать -PyVer/-Arch, "чистый" iex это не умеет (Invoke-Expression не
 # принимает параметры) - используйте вариант со scriptblock:
 #
-#   & ([scriptblock]::Create((irm https://raw.githubusercontent.com/<user>/<repo>/main/bootstrap.ps1))) -PyVer 3.14.1 -Arch amd64
+#   & ([scriptblock]::Create((irm https://raw.githubusercontent.com/NuttShell/localpython_installer/main/bootstrap.ps1))) -PyVer 3.14.1 -Arch amd64
 
 param(
     [string]$PyVer = "",
