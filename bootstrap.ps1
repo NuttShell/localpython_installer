@@ -2,7 +2,7 @@
 #
 # Удалённый запуск get_con.cmd одной командой, без скачивания файла на диск:
 #
-#   irm https://raw.githubusercontent.com/<user>/<repo>/main/bootstrap.ps1 | iex
+#   irm https://raw.githubusercontent.com/NuttShell/localpython_installer/main/bootstrap.ps1 | iex
 #
 # Если нужно передать -PyVer/-Arch, "чистый" iex это не умеет (Invoke-Expression не
 # принимает параметры) - используйте вариант со scriptblock:
