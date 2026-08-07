@@ -19,7 +19,7 @@ exit /b %RC%
 REM_PS1_CODE_START
 
 param(
-    [string]$ScriptDir
+    [string]$ScriptDir = $PWD.Path
 )
 
 $DEFAULT_PACKAGES = @(
