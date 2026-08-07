@@ -1,3 +1,2 @@
 # Place needed packages to install
 pyinstaller>=6.0
-fonttools==4.62.1
