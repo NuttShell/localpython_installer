@@ -31,8 +31,7 @@ param(
 )
 
 $DEFAULT_PACKAGES = @(
-    "pyinstaller",
-    "fonttools"
+    "pyinstaller"
 )
 
 Add-Type -AssemblyName System.IO.Compression.FileSystem
