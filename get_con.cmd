@@ -26,7 +26,7 @@ REM_PS1_CODE_START
 param(
     [string]$ScriptDir = $PWD.Path,
     [string]$PyVer = "",
-    [string]$Arch  = ""
+    [string]$Arch  = "",
     [switch]$NoWait
 )
 
