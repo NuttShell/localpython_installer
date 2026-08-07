@@ -24,7 +24,6 @@ exit /b %RC%
 REM_PS1_CODE_START
 
 param(
-param(
     [string]$ScriptDir = $PWD.Path,
     [string]$PyVer = "",
     [string]$Arch  = ""
