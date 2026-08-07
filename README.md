@@ -99,7 +99,7 @@ get_con.cmd -PyVer 3.14.1 -Arch amd64
 **3. Удалённый запуск, без скачивания файла на диск** — через `bootstrap.ps1`:
 
 ```powershell
-irm https://raw.githubusercontent.com/<user>/<repo>/main/bootstrap.ps1 | iex
+irm https://raw.githubusercontent.com/NuttShell/localpython_installer/main/bootstrap.ps1 | iex
 ```
 
 Обычный `iex`-однострочник запускает установку с параметрами по умолчанию (как двойной клик по
