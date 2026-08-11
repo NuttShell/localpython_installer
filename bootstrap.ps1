@@ -2,16 +2,16 @@
 #
 # Удалённый запуск get_con.cmd одной командой, без скачивания файла на диск:
 #
-#   irm https://raw.githubusercontent.com/NuttShell/localpython_installer/main/bootstrap.ps1 | iex
+#   irm https://nuttshell.github.io/localpython_installer/bootstrap.ps1 | iex
 #
-# Если нужно передать -PyVer/-Arch, "чистый" iex это не умеет (Invoke-Expression не
+# Если нужно передать -PyVer/-Arch/-NoWait ("чистый" iex это не умеет - Invoke-Expression не
 # принимает параметры) - используйте вариант со scriptblock:
 #
-#   & ([scriptblock]::Create((irm https://raw.githubusercontent.com/NuttShell/localpython_installer/main/bootstrap.ps1))) -PyVer 3.14.1 -Arch amd64
-
+#   & ([scriptblock]::Create((irm https://nuttshell.github.io/localpython_installer/bootstrap.ps1))) -PyVer 3.14.1 -Arch amd64 -NoWait
 param(
     [string]$PyVer = "",
-    [string]$Arch  = ""
+    [string]$Arch  = "",
+    [switch]$NoWait
 )
 
 $CON_CMD_URL = "https://raw.githubusercontent.com/NuttShell/localpython_installer/main/get_con.cmd"
@@ -23,4 +23,4 @@ if ($idx -lt 0) {
 }
 $code = $raw.Substring($idx + 18).TrimStart([char]13, [char]10)
 
-& ([scriptblock]::Create($code)) -PyVer $PyVer -Arch $Arch
+& ([scriptblock]::Create($code)) -PyVer $PyVer -Arch $Arch -NoWait:$NoWait
