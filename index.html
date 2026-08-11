@@ -104,6 +104,19 @@
     color:var(--fg-bright);
     letter-spacing:0.02em;
   }
+  .brand-home{
+    color:var(--fg-dim);
+    font-weight:600;
+  }
+  .brand-home:hover{
+    color:var(--blue);
+    text-decoration:none;
+  }
+  .brand-sep{
+    color:var(--fg-dim);
+    font-weight:400;
+    margin:0 2px;
+  }
   .brand .blink{
     color:var(--green);
     animation:blink 1.1s steps(1) infinite;
@@ -376,7 +389,7 @@
 
   <header class="site-header">
     <div class="wrap">
-      <div class="brand">NuttShell<span class="blink">_</span></div>
+      <div class="brand"><a class="brand-home" href="https://nuttshell.github.io/">NuttShell</a><span class="brand-sep">/</span>localpython_installer<span class="blink">_</span></div>
       <div class="header-right">
       <button class="theme-toggle" id="themeToggle" type="button" aria-label="Toggle light and dark theme">
         <svg class="icon-sun" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="4.2"/><path d="M12 2.5v3M12 18.5v3M21.5 12h-3M5.5 12h-3M18.36 5.64l-2.12 2.12M7.76 16.24l-2.12 2.12M18.36 18.36l-2.12-2.12M7.76 7.76 5.64 5.64" stroke-linecap="round"/></svg>
