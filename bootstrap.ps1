@@ -14,7 +14,7 @@ param(
     [string]$Arch  = ""
 )
 
-$CON_CMD_URL = "https://raw.githubusercontent.com/NuttShell/localpython_installer/main/get_win.cmd"
+$CON_CMD_URL = "https://raw.githubusercontent.com/NuttShell/localpython_installer/main/get_con.cmd"
 
 $raw  = Invoke-RestMethod -Uri $CON_CMD_URL
 $idx  = $raw.LastIndexOf('REM_PS1_CODE_START')
