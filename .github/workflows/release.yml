@@ -1,0 +1,37 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - '[0-9][0-9].[0-9][0-9][0-9][0-9]'
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Prepare release assets
+        run: |
+          mkdir -p release
+          cp get_con.cmd release/get_con.cmd
+          cp get_win.cmd release/get_win.cmd
+          cp pyconfig.json release/pyconfig.json.example
+          cp requirements.txt release/requirements.txt.example
+
+      - name: Create release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create "${GITHUB_REF_NAME}" \
+            release/get_con.cmd \
+            release/get_win.cmd \
+            release/pyconfig.json.example \
+            release/requirements.txt.example \
+            --title "${GITHUB_REF_NAME}" \
+            --generate-notes \
+            || gh release upload "${GITHUB_REF_NAME}" release/* --clobber
