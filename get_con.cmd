@@ -371,9 +371,11 @@ function Show-ExistingInstall {
     $pyExe = Join-Path $PythonDir "python.exe"
     if (-not (Test-Path $pyExe)) { return $true }
 
-    Write-Status "Existing installation found" $PythonDir
-
+    Write-Status "Existing installation found"
+	Write-Host ""
+	Write-Host "  Path: $pyExe" -ForegroundColor White
     $verLine = ((& $pyExe --version) 2>&1 | Out-String).Trim()
+	Write-Host ""  
     Write-Host "  Version : $verLine" -ForegroundColor White
 
     $pkgLines = @()
@@ -382,6 +384,7 @@ function Show-ExistingInstall {
     } catch { $pkgLines = @() }
 
     if ($pkgLines.Count -gt 0) {
+		Write-Host "" 
         Write-Host "  Installed packages ($($pkgLines.Count)):" -ForegroundColor White
         foreach ($line in $pkgLines) { Write-Host "    $line" -ForegroundColor Gray }
     } else {
