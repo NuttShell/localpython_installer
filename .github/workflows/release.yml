@@ -2,11 +2,9 @@ name: Release
 
 on:
   push:
-    branches: [ main ]
     tags:
-      - '[0-9][0-9].[0-9][0-9][0-9][0-9]'
-  workflow_dispatch:
-  
+      - '*'
+
 permissions:
   contents: write
 
@@ -17,23 +15,28 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Prepare release assets
+      - name: Assemble release files
         run: |
-          mkdir -p release
+          mkdir release
           cp get_con.cmd release/get_con.cmd
           cp get_win.cmd release/get_win.cmd
           cp pyconfig.json release/pyconfig.json.example
           cp requirements.txt release/requirements.txt.example
+          ls -la release
 
-      - name: Create release
+      - name: Create zip
+        run: |
+          cd release
+          zip -r "../localpython_installer-${GITHUB_REF_NAME}.zip" .
+
+      - name: Create or update GitHub release
         env:
-          GH_TOKEN: ${{ github.token }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           gh release create "${GITHUB_REF_NAME}" \
-            release/get_con.cmd \
-            release/get_win.cmd \
-            release/pyconfig.json.example \
-            release/requirements.txt.example \
+            "localpython_installer-${GITHUB_REF_NAME}.zip" \
             --title "${GITHUB_REF_NAME}" \
             --generate-notes \
-            || gh release upload "${GITHUB_REF_NAME}" release/* --clobber
+          || gh release upload "${GITHUB_REF_NAME}" \
+            "localpython_installer-${GITHUB_REF_NAME}.zip" \
+            --clobber
