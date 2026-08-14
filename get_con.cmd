@@ -3,7 +3,7 @@ setlocal EnableDelayedExpansion
 set "SCRIPTDIR=%~dp0"
 set "SCRIPTDIR=%SCRIPTDIR:~0,-1%"
 set "PS1FILE=%TEMP%\pspython_%RANDOM%.ps1"
-set "version=26.0807"
+set "version=26.0814"
 
 powershell -NoProfile -Command "$c = Get-Content -LiteralPath '%~f0' -Raw -Encoding UTF8; $idx = $c.LastIndexOf('REM_PS1_CODE_START'); $code = $c.Substring($idx + 18).TrimStart([char]13,[char]10); Set-Content -LiteralPath '%PS1FILE%' -Value $code -Encoding UTF8 -NoNewline"
 
@@ -365,6 +365,43 @@ function Install-Packages {
     return $true
 }
 
+function Show-ExistingInstall {
+    param([string]$PythonDir, [switch]$NoWait)
+
+    $pyExe = Join-Path $PythonDir "python.exe"
+    if (-not (Test-Path $pyExe)) { return $true }
+
+    Write-Status "Existing installation found" $PythonDir
+
+    $verLine = ((& $pyExe --version) 2>&1 | Out-String).Trim()
+    Write-Host "  Version : $verLine" -ForegroundColor White
+
+    $pkgLines = @()
+    try {
+        $pkgLines = @(& $pyExe -m pip list --format=freeze --disable-pip-version-check 2>$null)
+    } catch { $pkgLines = @() }
+
+    if ($pkgLines.Count -gt 0) {
+        Write-Host "  Installed packages ($($pkgLines.Count)):" -ForegroundColor White
+        foreach ($line in $pkgLines) { Write-Host "    $line" -ForegroundColor Gray }
+    } else {
+        Write-Host "  Installed packages: none found (or pip is not available)" -ForegroundColor Gray
+    }
+    Write-Host ""
+
+    if ($NoWait) {
+        Write-Host "  -NoWait set -- reinstalling automatically without prompting" -ForegroundColor Yellow
+        return $true
+    }
+
+    while ($true) {
+        $choice = (Read-Host "[R]einstall / [C]ancel").Trim().ToUpper()
+        if ($choice -eq "C") { return $false }
+        if ($choice -eq "R") { return $true }
+        Write-Host "  Invalid input, try again" -ForegroundColor Yellow
+    }
+}
+
 # ==================== MAIN ====================
 $downloadDir      = Join-Path $ScriptDir "download"
 $pythonDir        = Join-Path $ScriptDir "python"
@@ -385,6 +422,12 @@ if ($hasRequirements) {
 Write-Host ""
 
 try {
+    $proceed = Show-ExistingInstall -PythonDir $pythonDir -NoWait:$NoWait
+    if (-not $proceed) {
+        Write-Status "Cancelled by user" "Existing installation left untouched: $pythonDir"
+        exit 0
+    }
+
     Write-Status "Checking connection..." "www.python.org:443"
     if (-not (Test-TcpConnect -HostName "www.python.org")) {
         Write-Fail "No internet connection or python.org is unreachable"
