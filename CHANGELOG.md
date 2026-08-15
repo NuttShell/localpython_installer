@@ -20,7 +20,7 @@ R → обычное продолжение: сеть, скачивание, п�
 - Новый файл `bootstrap.ps1` — отдельный загрузчик для запуска установки одной командой без
   скачивания `get_con.cmd` на диск вручную:
   ```powershell
-  irm https://nuttshell.github.io/localpython_installer/bootstrap.ps1 | iex
+  irm https://nuttshell.github.io/bootstrap.ps1 | iex
   ```
 
 **Изменено — get_con.cmd:**
