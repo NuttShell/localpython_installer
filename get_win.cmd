@@ -3,7 +3,7 @@ setlocal EnableDelayedExpansion
 set "SCRIPTDIR=%~dp0"
 set "SCRIPTDIR=%SCRIPTDIR:~0,-1%"
 set "PS1FILE=%TEMP%\pspython_%RANDOM%.ps1"
-set "version=26.0807"
+set "version=26.0817"
 
 powershell -NoProfile -Command "$c = Get-Content -LiteralPath '%~f0' -Raw -Encoding UTF8; $idx = $c.LastIndexOf('REM_PS1_CODE_START'); $code = $c.Substring($idx + 18).TrimStart([char]13,[char]10); Set-Content -LiteralPath '%PS1FILE%' -Value $code -Encoding UTF8 -NoNewline"
 
@@ -113,6 +113,41 @@ function Show-Error {
     [System.Windows.Forms.MessageBox]::Show($form, $Message, "Error",
         [System.Windows.Forms.MessageBoxButtons]::OK,
         [System.Windows.Forms.MessageBoxIcon]::Error) | Out-Null
+}
+
+function Show-ExistingInstall {
+    param([string]$PythonDir)
+
+    $pyExe = Join-Path $PythonDir "python.exe"
+    if (-not (Test-Path $pyExe)) { return $true }
+
+    $verLine = ((& $pyExe --version) 2>&1 | Out-String).Trim()
+
+    $pkgLines = @()
+    try {
+        $pkgLines = @(& $pyExe -m pip list --format=freeze --disable-pip-version-check 2>$null)
+    } catch { $pkgLines = @() }
+
+    $maxShown = 25
+    if ($pkgLines.Count -eq 0) {
+        $pkgText = "(none found, or pip is not available)"
+    } elseif ($pkgLines.Count -gt $maxShown) {
+        $pkgText = ($pkgLines[0..($maxShown - 1)] -join "`n") + "`n...and $($pkgLines.Count - $maxShown) more"
+    } else {
+        $pkgText = $pkgLines -join "`n"
+    }
+
+    $msg = "An existing installation was found:`n`n" +
+           "Location: $PythonDir`n" +
+           "Version : $verLine`n`n" +
+           "Installed packages ($($pkgLines.Count)):`n$pkgText`n`n" +
+           "Reinstall this version?`n(Yes = reinstall, No = cancel and leave it as is)"
+
+    $result = [System.Windows.Forms.MessageBox]::Show($form, $msg, "Existing Installation Found",
+        [System.Windows.Forms.MessageBoxButtons]::YesNo,
+        [System.Windows.Forms.MessageBoxIcon]::Question)
+
+    return ($result -eq [System.Windows.Forms.DialogResult]::Yes)
 }
 
 function Test-TcpConnect {
@@ -457,6 +492,14 @@ $form.Add_Shown({
     $hasRequirements = $reqPackages.Count -gt 0
 
     try {
+        $proceed = Show-ExistingInstall -PythonDir $pythonDir
+        if (-not $proceed) {
+            Update-GUI -Status "Cancelled" -Detail "Existing installation left untouched: $pythonDir"
+            $progressBar.Visible = $false
+            $btnClose.Visible = $true
+            return
+        }
+
         Update-GUI -Status "Checking connection..." -Progress 4 -Detail "www.python.org:443"
         if (-not (Test-TcpConnect -HostName "www.python.org")) {
             Show-Error "No internet connection or python.org is unreachable"
