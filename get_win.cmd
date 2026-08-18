@@ -3,11 +3,11 @@ setlocal EnableDelayedExpansion
 set "SCRIPTDIR=%~dp0"
 set "SCRIPTDIR=%SCRIPTDIR:~0,-1%"
 set "PS1FILE=%TEMP%\pspython_%RANDOM%.ps1"
-set "version=26.0817"
+set "version=26.0818"
 
 powershell -NoProfile -Command "$c = Get-Content -LiteralPath '%~f0' -Raw -Encoding UTF8; $idx = $c.LastIndexOf('REM_PS1_CODE_START'); $code = $c.Substring($idx + 18).TrimStart([char]13,[char]10); Set-Content -LiteralPath '%PS1FILE%' -Value $code -Encoding UTF8 -NoNewline"
 
-powershell -NoProfile -ExecutionPolicy Bypass -File "%PS1FILE%" -ScriptDir "%SCRIPTDIR%"
+powershell -NoProfile -ExecutionPolicy Bypass -File "%PS1FILE%" -ScriptDir "%SCRIPTDIR%" -HideConsole
 
 set "RC=%errorlevel%"
 
@@ -19,18 +19,21 @@ exit /b %RC%
 REM_PS1_CODE_START
 
 param(
-    [string]$ScriptDir
+    [string]$ScriptDir = $PWD.Path,
+    [switch]$HideConsole
 )
 
 $DEFAULT_PACKAGES = @(
     "pyinstaller"
 )
 
-Add-Type -Name WinUtil -Namespace PyEmbed -MemberDefinition '
-    [DllImport("kernel32.dll")] public static extern IntPtr GetConsoleWindow();
-    [DllImport("user32.dll")]   public static extern bool   ShowWindow(IntPtr h, int n);
-'
-[PyEmbed.WinUtil]::ShowWindow([PyEmbed.WinUtil]::GetConsoleWindow(), 0) | Out-Null
+if ($HideConsole) {
+    Add-Type -Name WinUtil -Namespace PyEmbed -MemberDefinition '
+        [DllImport("kernel32.dll")] public static extern IntPtr GetConsoleWindow();
+        [DllImport("user32.dll")]   public static extern bool   ShowWindow(IntPtr h, int n);
+    '
+    [PyEmbed.WinUtil]::ShowWindow([PyEmbed.WinUtil]::GetConsoleWindow(), 0) | Out-Null
+}
 
 Add-Type -AssemblyName System.Windows.Forms
 Add-Type -AssemblyName System.Drawing
