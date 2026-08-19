@@ -292,6 +292,38 @@
   .copy-btn:hover{ border-color:var(--fg-dim); color:#FFFFFF; }
   .copy-btn.copied{ border-color:#16C60C; color:#16C60C; }
 
+  /* ---------- release links ---------- */
+  .release-links{
+    display:flex;
+    flex-wrap:wrap;
+    gap:10px;
+    margin-top:14px;
+  }
+  .release-badge{
+    display:inline-flex;
+    align-items:center;
+    gap:6px;
+    font-family:var(--font);
+    font-size:12.5px;
+    color:var(--fg-dim);
+    border:1px solid var(--line);
+    border-radius:8px;
+    padding:6px 13px;
+    background:var(--bg-panel);
+    transition:color .15s, border-color .15s;
+  }
+  .release-badge:hover{
+    color:var(--fg-bright);
+    border-color:var(--fg-dim);
+    text-decoration:none;
+  }
+  .release-badge svg{
+    width:13px; height:13px;
+    fill:none;
+    stroke:currentColor;
+    stroke-width:1.8;
+  }
+
   /* ---------- about ---------- */
   .about{
     padding:44px 0 56px;
@@ -429,6 +461,17 @@
             <button class="copy-btn" id="copyBtn" type="button" data-cmd="irm https://nuttshell.github.io/bootstrap.ps1 | iex">Copy</button>
           </div>
         </div>
+      </div>
+
+      <div class="release-links">
+        <a class="release-badge" href="https://github.com/NuttShell/localpython_installer/releases/latest" target="_blank" rel="noopener">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3v12M7 10l5 5 5-5M5 20h14" stroke-linecap="round" stroke-linejoin="round"/></svg>
+          Download latest release
+        </a>
+        <a class="release-badge" href="https://github.com/NuttShell/localpython_installer/releases" target="_blank" rel="noopener">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h16M4 12h16M4 17h10" stroke-linecap="round"/></svg>
+          All releases
+        </a>
       </div>
     </section>
 
