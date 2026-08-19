@@ -1,3 +1,6 @@
+[![GitHub release](https://img.shields.io/github/v/release/NuttShell/localpython_installer)](https://github.com/NuttShell/localpython_installer/releases/latest)
+[![GitHub Release Date](https://img.shields.io/github/release-date/NuttShell/localpython_installer)](https://github.com/NuttShell/localpython_installer/releases/latest)
+[![Downloads](https://img.shields.io/github/downloads/NuttShell/localpython_installer/total)](https://github.com/NuttShell/localpython_installer/releases)
 # Python Embed Installer
 
 Python Embed Installer - скрипты для Windows, которые разворачивают рядом с собой
