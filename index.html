@@ -126,6 +126,45 @@
     align-items:center;
     gap:18px;
   }
+  .lang-toggle{
+    position:relative;
+    display:inline-flex;
+    padding:3px;
+    gap:2px;
+    height:30px;
+    border-radius:8px;
+    background:var(--bg-page);
+    border:1px solid var(--line);
+  }
+  .lang-indicator{
+    position:absolute;
+    top:3px; bottom:3px; left:3px;
+    width:30px;
+    border-radius:6px;
+    background:var(--bg-panel);
+    box-shadow:0 1px 3px rgba(0,0,0,0.25);
+    transition:transform .2s cubic-bezier(.4,0,.2,1);
+    pointer-events:none;
+  }
+  :root[data-theme="light"] .lang-indicator{ box-shadow:0 1px 3px rgba(0,0,0,0.10); }
+  .lang-toggle[data-active="ru"] .lang-indicator{ transform:translateX(32px); }
+  .lang-toggle button{
+    position:relative;
+    z-index:1;
+    width:30px;
+    font-family:var(--font);
+    font-size:11px;
+    font-weight:700;
+    letter-spacing:0.02em;
+    background:transparent;
+    color:var(--fg-dim);
+    border:none;
+    border-radius:6px;
+    cursor:pointer;
+    transition:color .2s;
+  }
+  .lang-toggle button.active{ color:var(--fg-bright); }
+  .lang-toggle button:hover{ color:var(--fg-bright); }
   .theme-toggle{
     display:flex; align-items:center; justify-content:center;
     width:30px; height:30px;
@@ -436,7 +475,12 @@
     <div class="wrap">
       <div class="brand"><a class="brand-home" href="https://nuttshell.github.io/">nuttshell.github.io</a><span class="brand-sep">/</span>localpython_installer<span class="blink">_</span></div>
       <div class="header-right">
-      <button class="theme-toggle" id="themeToggle" type="button" aria-label="Toggle light and dark theme">
+      <div class="lang-toggle" role="group" aria-label="Language" data-active="en">
+        <span class="lang-indicator" aria-hidden="true"></span>
+        <button type="button" data-lang="en" class="active" aria-pressed="true">EN</button>
+        <button type="button" data-lang="ru" aria-pressed="false">RU</button>
+      </div>
+      <button class="theme-toggle" id="themeToggle" type="button" data-i18n-aria="themeToggleLabel" aria-label="Toggle light and dark theme">
         <svg class="icon-sun" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="4.2"/><path d="M12 2.5v3M12 18.5v3M21.5 12h-3M5.5 12h-3M18.36 5.64l-2.12 2.12M7.76 16.24l-2.12 2.12M18.36 18.36l-2.12-2.12M7.76 7.76 5.64 5.64" stroke-linecap="round"/></svg>
         <svg class="icon-moon" viewBox="0 0 24 24" aria-hidden="true"><path d="M20 14.5A8.5 8.5 0 0 1 9.5 4a8.5 8.5 0 1 0 10.5 10.5z"/></svg>
       </button>
@@ -450,16 +494,16 @@
 
   <main>
     <section class="hero wrap">
-      <p class="eyebrow">local python, zero install footprint</p>
-      <h1>Python Embed Installer</h1>
+      <p class="eyebrow" data-i18n="eyebrow">local python, zero install footprint</p>
+      <h1 data-i18n="h1">Python Embed Installer</h1>
       <p class="lede">
-        Drops a <b>self-contained, embeddable Python</b> next to your project — pip and your
-        packages included. No system install, no <code>PATH</code> changes, nothing left behind
-        when you delete the folder.
+        <span data-i18n="ledePre">Drops a </span><b data-i18n="ledeBold">self-contained, embeddable Python</b><span data-i18n="ledeMid"> next to your project — pip and your
+        packages included. No system install, no </span><code>PATH</code><span data-i18n="ledePost"> changes, nothing left behind
+        when you delete the folder.</span>
       </p>
       <p class="lede-cta">
-        <b>Quick start</b> — open Windows PowerShell where you want Python installed, and paste
-        this command:
+        <b data-i18n="ctaBold">Quick start</b><span data-i18n="ctaRest"> — open Windows PowerShell where you want Python installed, and paste
+        this command:</span>
       </p>
 
       <div class="terminal">
@@ -474,52 +518,52 @@
             <span class="prompt">PS C:\Users\you&gt;</span><span class="typed" id="typed"></span><span class="caret" id="caret"></span>
           </div>
           <div class="terminal-foot">
-            <p class="hint">Add <code>-PyVer 3.14.1 -Arch amd64</code> to skip the version picker.</p>
-            <button class="copy-btn" id="copyBtn" type="button" data-cmd="irm https://nuttshell.github.io/bootstrap.ps1 | iex">Copy</button>
+            <p class="hint"><span data-i18n="hintPre">Add </span><code>-PyVer 3.14.1 -Arch amd64</code><span data-i18n="hintPost"> to skip the version picker.</span></p>
+            <button class="copy-btn" id="copyBtn" type="button" data-i18n="copyLabel" data-cmd="irm https://nuttshell.github.io/bootstrap.ps1 | iex">Copy</button>
           </div>
         </div>
       </div>
       
-      <p class="ledwnl">
+      <p class="ledwnl" data-i18n="ledwnl">
         or download, unzip and run on your PC:
       </p>
       
       <div class="release-links">
         <a class="release-badge" href="https://github.com/NuttShell/localpython_installer/releases/latest" target="_blank" rel="noopener">
           <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3v12M7 10l5 5 5-5M5 20h14" stroke-linecap="round" stroke-linejoin="round"/></svg>
-          Download latest release
+          <span data-i18n="dlLatest">Download latest release</span>
         </a>
         <a class="release-badge" href="https://github.com/NuttShell/localpython_installer/releases" target="_blank" rel="noopener">
           <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h16M4 12h16M4 17h10" stroke-linecap="round"/></svg>
-          All releases
+          <span data-i18n="allReleases">All releases</span>
         </a>
       </div>
     </section>
 
     <section class="about wrap">
       <div>
-        <h2>What it does</h2>
+        <h2 data-i18n="whatItDoes">What it does</h2>
         <ol class="steps">
-          <li><span>Downloads an embeddable Python build for your version and architecture</span></li>
-          <li><span>Installs pip (falls back to a wheel if get-pip is unreachable)</span></li>
-          <li><span>Installs your packages — <code>requirements.txt</code>, or PyInstaller by default</span></li>
-          <li><span>Leaves it all in one folder — nothing touches the rest of your system</span></li>
+          <li><span data-i18n="step1">Downloads an embeddable Python build for your version and architecture</span></li>
+          <li><span data-i18n="step2">Installs pip (falls back to a wheel if get-pip is unreachable)</span></li>
+          <li><span data-i18n="step3pre">Installs your packages — </span><code>requirements.txt</code><span data-i18n="step3post">, or PyInstaller by default</span></li>
+          <li><span data-i18n="step4">Leaves it all in one folder — nothing touches the rest of your system</span></li>
         </ol>
       </div>
       <div>
-        <h2>Two ways to run it</h2>
+        <h2 data-i18n="twoWays">Two ways to run it</h2>
         <dl class="runways">
           <div class="runway">
-            <dt>get_con.cmd <span class="tag">— console</span></dt>
-            <dd>Scriptable: command-line flags, <code>pyconfig.json</code>, CI-friendly.</dd>
+            <dt>get_con.cmd <span class="tag" data-i18n="tagConsole">— console</span></dt>
+            <dd><span data-i18n="runway1pre">Scriptable: command-line flags, </span><code>pyconfig.json</code><span data-i18n="runway1post">, CI-friendly.</span></dd>
           </div>
           <div class="runway">
-            <dt>get_win.cmd <span class="tag">— GUI</span></dt>
-            <dd>Point-and-click version picker, progress bar, no terminal required.</dd>
+            <dt>get_win.cmd <span class="tag" data-i18n="tagGui">— GUI</span></dt>
+            <dd data-i18n="runway2">Point-and-click version picker, progress bar, no terminal required.</dd>
           </div>
         </dl>
         <p class="repo-cta">
-          Full docs, flags, and source →
+          <span data-i18n="repoCta">Full docs, flags, and source →</span>
           <a href="https://github.com/NuttShell/localpython_installer" target="_blank" rel="noopener">localpython_installer</a>
         </p>
       </div>
@@ -528,10 +572,122 @@
 
   <footer class="site-footer">
     <div class="wrap">
-      <div>© 2026 NuttShell <span class="dot">·</span> MIT licensed</div>
+      <div><span data-i18n="footerCopy">Copyright © 2026 NuttShell</span> <span class="dot">·</span> <span data-i18n="footerLicense">MIT licensed</span></div>
     </div>
   </footer>
 
+<script>
+  var I18N = {
+    en: {
+      title: "NuttShell — Python Embed Installer",
+      themeToggleLabel: "Toggle light and dark theme",
+      eyebrow: "local python, zero install footprint",
+      h1: "Python Embed Installer",
+      ledePre: "Drops a ",
+      ledeBold: "self-contained, embeddable Python",
+      ledeMid: " next to your project — pip and your packages included. No system install, no ",
+      ledePost: " changes, nothing left behind when you delete the folder.",
+      ctaBold: "Quick start",
+      ctaRest: " — open Windows PowerShell where you want Python installed, and paste this command:",
+      hintPre: "Add ",
+      hintPost: " to skip the version picker.",
+      copyLabel: "Copy",
+      copiedLabel: "Copied",
+      ledwnl: "or download, unzip and run on your PC:",
+      dlLatest: "Download latest release",
+      allReleases: "All releases",
+      whatItDoes: "What it does",
+      step1: "Downloads an embeddable Python build for your version and architecture",
+      step2: "Installs pip (falls back to a wheel if get-pip is unreachable)",
+      step3pre: "Installs your packages — ",
+      step3post: ", or PyInstaller by default",
+      step4: "Leaves it all in one folder — nothing touches the rest of your system",
+      twoWays: "Two ways to run it",
+      tagConsole: "— console",
+      tagGui: "— GUI",
+      runway1pre: "Scriptable: command-line flags, ",
+      runway1post: ", CI-friendly.",
+      runway2: "Point-and-click version picker, progress bar, no terminal required.",
+      repoCta: "Full docs, flags, and source →",
+      footerCopy: "Copyright © 2026 NuttShell",
+      footerLicense: "MIT licensed"
+    },
+    ru: {
+      title: "NuttShell — установщик embed-версии Python",
+      themeToggleLabel: "Переключить светлую/тёмную тему",
+      eyebrow: "локальный python, ноль следов в системе",
+      h1: "Python Embed Installer",
+      ledePre: "Разворачивает ",
+      ledeBold: "автономный, embeddable Python",
+      ledeMid: " рядом с вашим проектом — pip и нужные пакеты включены. Без системной установки, без изменения ",
+      ledePost: ", ничего не остаётся после удаления папки.",
+      ctaBold: "Быстрый старт",
+      ctaRest: " — откройте Windows PowerShell там, куда хотите поставить Python, и вставьте эту команду:",
+      hintPre: "Добавьте ",
+      hintPost: ", чтобы пропустить выбор версии.",
+      copyLabel: "Копировать",
+      copiedLabel: "Скопировано",
+      ledwnl: "или скачайте, распакуйте и запустите на своём ПК:",
+      dlLatest: "Скачать последний релиз",
+      allReleases: "Все релизы",
+      whatItDoes: "Что делает",
+      step1: "Скачивает embeddable-сборку Python под вашу версию и архитектуру",
+      step2: "Устанавливает pip (при недоступности get-pip — через wheel)",
+      step3pre: "Устанавливает пакеты — ",
+      step3post: ", либо PyInstaller по умолчанию",
+      step4: "Оставляет всё в одной папке — остальная система не затрагивается",
+      twoWays: "Два способа запуска",
+      tagConsole: "— консоль",
+      tagGui: "— GUI",
+      runway1pre: "Скриптуемый: ключи командной строки, ",
+      runway1post: ", подходит для CI.",
+      runway2: "Выбор версии мышкой, прогресс-бар, консоль не нужна.",
+      repoCta: "Полная документация, ключи и исходный код →",
+      footerCopy: "Copyright © 2026 NuttShell",
+      footerLicense: "лицензия MIT"
+    }
+  };
+
+  function applyLang(lang){
+    var dict = I18N[lang] || I18N.en;
+    document.documentElement.setAttribute('lang', lang);
+    if (dict.title) document.title = dict.title;
+
+    document.querySelectorAll('[data-i18n]').forEach(function(el){
+      var key = el.getAttribute('data-i18n');
+      if (dict[key] != null) el.textContent = dict[key];
+    });
+    document.querySelectorAll('[data-i18n-aria]').forEach(function(el){
+      var key = el.getAttribute('data-i18n-aria');
+      if (dict[key] != null) el.setAttribute('aria-label', dict[key]);
+    });
+    document.querySelectorAll('.lang-toggle').forEach(function(group){
+      group.setAttribute('data-active', lang);
+    });
+    document.querySelectorAll('.lang-toggle button').forEach(function(btn){
+      var isActive = btn.getAttribute('data-lang') === lang;
+      btn.classList.toggle('active', isActive);
+      btn.setAttribute('aria-pressed', isActive ? 'true' : 'false');
+    });
+
+    window.__nuttshellLang = lang;
+    localStorage.setItem('nuttshell-lang', lang);
+  }
+
+  function t(key){
+    var dict = I18N[window.__nuttshellLang] || I18N.en;
+    return dict[key] != null ? dict[key] : (I18N.en[key] || '');
+  }
+
+  document.addEventListener('DOMContentLoaded', function(){
+    document.querySelectorAll('.lang-toggle button').forEach(function(btn){
+      btn.addEventListener('click', function(){
+        applyLang(btn.getAttribute('data-lang'));
+      });
+    });
+    applyLang(localStorage.getItem('nuttshell-lang') || 'en');
+  });
+</script>
 <script>
 (function(){
   var full = "irm https://nuttshell.github.io/bootstrap.ps1 | iex";
@@ -555,11 +711,10 @@
   btn.addEventListener('click', function(){
     var cmd = btn.getAttribute('data-cmd');
     var done = function(){
-      var original = 'Copy';
-      btn.textContent = 'Copied';
+      btn.textContent = t('copiedLabel');
       btn.classList.add('copied');
       setTimeout(function(){
-        btn.textContent = original;
+        btn.textContent = t('copyLabel');
         btn.classList.remove('copied');
       }, 1600);
     };
