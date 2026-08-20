@@ -180,12 +180,19 @@
     letter-spacing:-0.01em;
   }
   .lede{
-    margin:0 0 36px;
-    max-width:58ch;
+    margin:0 0 12px;
+    max-width:none;
     color:var(--fg);
     font-size:15.5px;
   }
   .lede b{ color:var(--fg-bright); font-weight:600; }
+  .lede-cta{
+    margin:0 0 16px;
+    max-width:none;
+    color:var(--fg);
+    font-size:15.5px;
+  }
+  .lede-cta b{ color:var(--fg-bright); font-weight:600; }
   .ledwnl{
     margin:8px 0 8px;
     max-width:58ch;
@@ -427,7 +434,7 @@
 
   <header class="site-header">
     <div class="wrap">
-      <div class="brand"><a class="brand-home" href="https://nuttshell.github.io/">nuttshell.github.io</a><span class="brand-sep">/</span>localpython_installer<span class="blink">_</span></div>
+      <div class="brand"><a class="brand-home" href="https://nuttshell.github.io/">NuttShell</a><span class="brand-sep">/</span>localpython_installer<span class="blink">_</span></div>
       <div class="header-right">
       <button class="theme-toggle" id="themeToggle" type="button" aria-label="Toggle light and dark theme">
         <svg class="icon-sun" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="4.2"/><path d="M12 2.5v3M12 18.5v3M21.5 12h-3M5.5 12h-3M18.36 5.64l-2.12 2.12M7.76 16.24l-2.12 2.12M18.36 18.36l-2.12-2.12M7.76 7.76 5.64 5.64" stroke-linecap="round"/></svg>
@@ -449,6 +456,10 @@
         Drops a <b>self-contained, embeddable Python</b> next to your project — pip and your
         packages included. No system install, no <code>PATH</code> changes, nothing left behind
         when you delete the folder.
+      </p>
+      <p class="lede-cta">
+        <b>Quick start</b> — open Windows PowerShell where you want Python installed, and paste
+        this command:
       </p>
 
       <div class="terminal">
@@ -517,8 +528,8 @@
 
   <footer class="site-footer">
     <div class="wrap">
-      <div>Copyright © 2026 NuttShell <span class="dot">·</span> °</div>
-      <div> MIT licensed</div>
+      <div>© 2026 NuttShell <span class="dot">·</span> MIT licensed</div>
+      <div>nuttshell.github.io</div>
     </div>
   </footer>
 
