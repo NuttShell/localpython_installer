@@ -1,27 +1,25 @@
+<# : batch cmd
 @echo off
 setlocal EnableDelayedExpansion
+
+set "version=26.0826"
 set "SCRIPTDIR=%~dp0"
 set "SCRIPTDIR=%SCRIPTDIR:~0,-1%"
-set "PS1FILE=%TEMP%\pspython_%RANDOM%.ps1"
-set "version=26.0814"
-
-powershell -NoProfile -Command "$c = Get-Content -LiteralPath '%~f0' -Raw -Encoding UTF8; $idx = $c.LastIndexOf('REM_PS1_CODE_START'); $code = $c.Substring($idx + 18).TrimStart([char]13,[char]10); Set-Content -LiteralPath '%PS1FILE%' -Value $code -Encoding UTF8 -NoNewline"
 
 set "NOWAIT="
 for %%A in (%*) do (
     if /I "%%~A"=="-nowait" set "NOWAIT=1"
 )
 
-powershell -NoProfile -ExecutionPolicy Bypass -File "%PS1FILE%" -ScriptDir "%SCRIPTDIR%" %*
+set "ARGS="!SCRIPTDIR!" %*"
+if defined ARGS set "ARGS=%ARGS:"=\"%"
+if defined ARGS set "ARGS=%ARGS:'=''%"
 
+powershell -c ^"Invoke-Expression ('^& {' + (get-content -raw '%~f0') + '} %ARGS%')"
 set "RC=%errorlevel%"
-
-del "%PS1FILE%" >nul 2>&1
-
 if not "%RC%"=="0" if not defined NOWAIT pause
 exit /b %RC%
-
-REM_PS1_CODE_START
+#>
 
 param(
     [string]$ScriptDir = $PWD.Path,
@@ -371,11 +369,9 @@ function Show-ExistingInstall {
     $pyExe = Join-Path $PythonDir "python.exe"
     if (-not (Test-Path $pyExe)) { return $true }
 
-    Write-Status "Existing installation found"
-	Write-Host ""
-	Write-Host "  Path: $pyExe" -ForegroundColor White
+    Write-Status "Existing installation found" $PythonDir
+
     $verLine = ((& $pyExe --version) 2>&1 | Out-String).Trim()
-	Write-Host ""  
     Write-Host "  Version : $verLine" -ForegroundColor White
 
     $pkgLines = @()
@@ -384,7 +380,6 @@ function Show-ExistingInstall {
     } catch { $pkgLines = @() }
 
     if ($pkgLines.Count -gt 0) {
-		Write-Host "" 
         Write-Host "  Installed packages ($($pkgLines.Count)):" -ForegroundColor White
         foreach ($line in $pkgLines) { Write-Host "    $line" -ForegroundColor Gray }
     } else {
