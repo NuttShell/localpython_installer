@@ -2,7 +2,7 @@
 @echo off
 setlocal EnableDelayedExpansion
 
-set "version=26.0826"
+set "version=26.0906"
 set "SCRIPTDIR=%~dp0"
 set "SCRIPTDIR=%SCRIPTDIR:~0,-1%"
 
@@ -11,18 +11,17 @@ for %%A in (%*) do (
     if /I "%%~A"=="-nowait" set "NOWAIT=1"
 )
 
-set "ARGS="!SCRIPTDIR!" %*"
+set ARGS= %*
 if defined ARGS set "ARGS=%ARGS:"=\"%"
 if defined ARGS set "ARGS=%ARGS:'=''%"
 
-powershell -c ^"Invoke-Expression ('^& {' + (get-content -raw '%~f0') + '} %ARGS%')"
+powershell -NoProfile -ExecutionPolicy Bypass -c ^"$ScriptDir='%SCRIPTDIR%'; $version='%version%'; Invoke-Expression ('^& {' + (get-content -raw -Encoding UTF8 '%~f0') + '} %ARGS%')"
 set "RC=%errorlevel%"
 if not "%RC%"=="0" if not defined NOWAIT pause
 exit /b %RC%
 #>
 
 param(
-    [string]$ScriptDir = $PWD.Path,
     [string]$PyVer = "",
     [string]$Arch  = "",
     [switch]$NoWait
@@ -31,6 +30,8 @@ param(
 $DEFAULT_PACKAGES = @(
     "pyinstaller"
 )
+
+if (-not $ScriptDir) { $ScriptDir = $PWD.Path }
 
 Add-Type -AssemblyName System.IO.Compression.FileSystem
 
@@ -411,7 +412,12 @@ $reqPackages     = Read-Requirements -Path $requirementsFile
 $hasRequirements = $reqPackages.Count -gt 0
 
 Write-Host ""
-Write-Host "Python Embed Installer (console)" -ForegroundColor Cyan
+Write-Host "==============================================" -ForegroundColor White
+Write-Host " Python Embed Installer (console)" -ForegroundColor White
+Write-Host " version $version" -ForegroundColor White
+Write-Host "==============================================" -ForegroundColor White
+Write-Host ""
+
 if ($hasRequirements) {
     Write-Host "Packages: from requirements.txt ($($reqPackages.Count) entries)" -ForegroundColor White
 } else {
