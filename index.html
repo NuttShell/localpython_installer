@@ -523,7 +523,26 @@
           </div>
         </div>
       </div>
-      
+      <p class="ledwnl" data-i18n="ledwnl">
+        or to run GUI version:
+      </p>
+      <div class="terminal">
+        <div class="terminal-titlebar">
+          <span class="terminal-tab">Windows PowerShell</span>
+          <div class="win-controls" aria-hidden="true">
+            <span>&#8212;</span><span>&#9633;</span><span>&#215;</span>
+          </div>
+        </div>
+        <div class="terminal-body">
+          <div class="cmd-line">
+            <span class="prompt">PS C:\Users\you&gt;</span><span class="typed" id="typed"></span><span class="caret" id="caret"></span>
+          </div>
+          <div class="terminal-foot">
+            <p class="hint"><span data-i18n="hintPre">Add </span><code>-PyVer 3.14.1 -Arch amd64</code><span data-i18n="hintPost"> to skip the version picker.</span></p>
+            <button class="copy-btn" id="copyBtn" type="button" data-i18n="copyLabel" data-cmd="irm https://nuttshell.github.io/bootstrap_win.ps1 | iex">Copy</button>
+          </div>
+        </div>
+      </div>
       <p class="ledwnl" data-i18n="ledwnl">
         or download, unzip and run on your PC:
       </p>
